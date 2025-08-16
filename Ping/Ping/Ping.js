@@ -1,3 +1,6 @@
+// Minimal Volt PWA Ping Function
+// Stripped down to basics for debugging
+
 export default async (request, context) => {
   // Return the simplest possible response
   return new Response(JSON.stringify({
