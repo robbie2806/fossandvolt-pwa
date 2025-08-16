@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#ff2fb3" />
+  <title>Subscribe • Volt</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">⚡ Volt</div>
+    <nav>
+      <a href="/">Chat</a>
+      <a href="/subscription.html" class="active">Subscribe</a>
+    </nav>
+  </header>
+  <main id="app">
+    <h2>Join Volt Premium</h2>
+    <p>Unlimited convo history, faster replies, and priority SMS alerts.</p>
+    <button id="subBtn">Subscribe</button>
+    <p class="meta" style="margin-top:10px;color:#9aa0a6">You’ll be redirected to Stripe Checkout.</p>
+  </main>
+  <script>
+    document.getElementById('subBtn').addEventListener('click', async () => {
+      const r = await fetch('/api/subscribe', { method: 'POST' });
+      const { url, error } = await r.json();
+      if (url) location.href = url; else alert(error || 'Could not start checkout.');
+    });
+  </script>
+</body>
+</html>
