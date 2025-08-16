@@ -1,15 +1,29 @@
 [build]
-  publish = "."
+  publish = "/"
   functions = "netlify/functions"
 
-# API routes (serverless functions)
+# Let us hit /api/* and route to Functions
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200
 
-# SPA fallback so deep links work
+# Single‑page‑app fallback (keeps PWA routes working)
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+
+# CORS for our API
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "GET, POST, OPTIONS"
+    Access-Control-Allow-Headers = "Content-Type"
+
+# Correct content type for the manifest
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Content-Type = "application/manifest+json; charset=utf-8"
