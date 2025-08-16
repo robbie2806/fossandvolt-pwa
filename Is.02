@@ -1,0 +1,51 @@
+exports.handler = async (event) => {
+  // Simple CORS
+  const headers = {
+    'content-type': 'application/json; charset=utf-8',
+    'access-control-allow-origin': '*'
+  };
+
+  if (event.httpMethod !== 'POST') {
+    return { statusCode: 405, headers, body: JSON.stringify({ error: 'POST only' }) };
+  }
+
+  const { message = '', image = null } = JSON.parse(event.body || '{}');
+
+  // If no OpenAI key set, return a friendly local reply (works out of the box)
+  const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+  if (!OPENAI_API_KEY) {
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        reply: `Volt here. You said: “${message || '(photo only)'}”. Add OPENAI_API_KEY in Netlify env vars to enable AI brains.`,
+        echoImage: image || null
+      })
+    };
+  }
+
+  // Use OpenAI (non-streaming) if key is present
+  try {
+    const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'authorization': `Bearer ${OPENAI_API_KEY}`,
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: 'You are Volt, a warm, fast assistant for Foss.' },
+          { role: 'user', content: message || '(photo attached)' }
+        ]
+      })
+    });
+
+    const data = await resp.json();
+    const reply = data.choices?.[0]?.message?.content || '…';
+
+    return { statusCode: 200, headers, body: JSON.stringify({ reply, echoImage: image || null }) };
+  } catch (e) {
+    return { statusCode: 500, headers, body: JSON.stringify({ error: 'AI call failed' }) };
+  }
+};
