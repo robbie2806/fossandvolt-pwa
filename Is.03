@@ -1,0 +1,35 @@
+exports.handler = async () => {
+  const headers = {
+    'content-type': 'application/json; charset=utf-8',
+    'access-control-allow-origin': '*'
+  };
+
+  const secret = process.env.STRIPE_SECRET_KEY;
+  const price = process.env.STRIPE_PRICE_ID;
+  const site = process.env.SITE_URL || 'https://example.com';
+
+  if (!secret || !price) {
+    return { statusCode: 200, headers, body: JSON.stringify({ error: 'Missing STRIPE_SECRET_KEY or STRIPE_PRICE_ID' }) };
+  }
+
+  try {
+    const r = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+      method: 'POST',
+      headers: {
+        'authorization': `Bearer ${secret}`,
+        'content-type': 'application/x-www-form-urlencoded'
+      },
+      body: new URLSearchParams({
+        mode: 'subscription',
+        line_items: [{ price, quantity: '1' }].map((x,i)=>`line_items[${i}][price]=${x.price}&line_items[${i}][quantity]=${x.quantity}`).join('&'),
+        success_url: `${site}/?sub=success`,
+        cancel_url: `${site}/subscription.html?sub=cancel`
+      })
+    });
+
+    const data = await r.json();
+    return { statusCode: 200, headers, body: JSON.stringify({ url: data.url }) };
+  } catch (e) {
+    return { statusCode: 500, headers, body: JSON.stringify({ error: 'Stripe error' }) };
+  }
+};
