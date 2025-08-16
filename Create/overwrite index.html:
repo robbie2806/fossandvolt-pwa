@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#ff2fb3" />
+  <link rel="manifest" href="/manifest.webmanifest">
+  <title>Volt • Foss & Volt</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">⚡ Volt</div>
+    <nav>
+      <a href="/" class="active">Chat</a>
+      <a href="/subscription.html">Subscribe</a>
+    </nav>
+  </header>
+
+  <main id="app">
+    <ul id="messages" class="messages"></ul>
+
+    <form id="composer" autocomplete="off">
+      <label class="file-btn">
+        📷
+        <input id="photo" type="file" accept="image/*" hidden>
+      </label>
+      <input id="input" type="text" placeholder="Type to talk to Volt…" />
+      <button id="send" type="submit">Send</button>
+    </form>
+
+    <div id="preview" class="preview" hidden>
+      <img id="previewImg" alt="attachment">
+      <button id="clearImg" type="button">Remove</button>
+    </div>
+  </main>
+
+  <script src="/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
+      });
+    }
+  </script>
+</body>
+</html>
