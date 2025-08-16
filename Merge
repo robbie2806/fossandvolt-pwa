@@ -1,0 +1,36 @@
+<script>
+async function postJSON(url, data) {
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(data)
+  });
+  return r.json();
+}
+document.getElementById("msgForm")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const text = document.getElementById("msg").value;
+  const res = await postJSON("/api/message", { text });
+  alert(res.ok ? "Saved ✅" : "Error ❌");
+});
+
+document.getElementById("uploadForm")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const fd = new FormData();
+  const f = document.getElementById("file").files[0];
+  if (!f) return alert("Pick a file");
+  fd.append("file", f);
+  const r = await fetch("/api/upload", { method: "POST", body: fd });
+  const res = await r.json();
+  if (res.ok) {
+    // show the uploaded image
+    const img = document.getElementById("preview") || document.body.appendChild(document.createElement("img"));
+    img.id = "preview";
+    img.src = res.url;
+    img.style.maxWidth = "90%";
+    alert("Uploaded ✅");
+  } else {
+    alert("Upload failed ❌");
+  }
+});
+</script>
