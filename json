@@ -1,0 +1,9 @@
+{
+  "name": "Volt Command",
+  "short_name": "Volt",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0b0c",
+  "theme_color": "#ff2fb3",
+  "icons": []
+}
