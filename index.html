@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#ff2fb3" />
+  <link rel="manifest" href="/manifest.webmanifest">
+  <title>Volt PWA</title>
+  <style>
+    body{font-family: -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial; margin:0; background:#0b0b0c; color:#fff}
+    .wrap{max-width:700px; margin:0 auto; padding:24px}
+    button{padding:10px 14px; border:1px solid #333; background:#111; color:#fff; border-radius:8px}
+    pre{background:#0f0f11; border:1px solid #1b1b1f; border-radius:12px; padding:14px; min-height:120px; overflow:auto}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>⚡ Volt PWA</h1>
+    <p>Install me: in Safari → Share → <b>Add to Home Screen</b>. Works offline after first load.</p>
+    <div style="display:flex; gap:12px; flex-wrap:wrap; margin:16px 0">
+      <button onclick="ping()">Ping</button>
+      <button onclick="clearLog()">Clear</button>
+    </div>
+    <pre id="log">Ready.</pre>
+  </div>
+  <script>
+    const log = (t)=>{ document.getElementById('log').textContent = (t||'') }
+    const clearLog = ()=> log('Ready.')
+    async function ping(){
+      try {
+        const r = await fetch('/', { method:'HEAD', cache:'no-store' })
+        log('Status: '+r.status+' '+r.statusText+' — '+new Date().toLocaleString())
+      } catch(e){ log('Error: '+(e?.message||e)) }
+    }
+    // Register service worker for offline shell
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', ()=> {
+        navigator.serviceWorker.register('/service-worker.js').catch(()=>{})
+      })
+    }
+  </script>
+</body>
+</html>
