@@ -1,0 +1,15 @@
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+# API routes (serverless functions)
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
+# SPA fallback so deep links work
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
