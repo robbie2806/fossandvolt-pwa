@@ -1,0 +1,9 @@
+<form id="msgForm" style="margin:1rem 0;">
+  <textarea id="msg" placeholder="Type a message…" rows="3" style="width:100%;"></textarea>
+  <button type="submit">Send</button>
+</form>
+
+<form id="uploadForm" style="margin:1rem 0;">
+  <input id="file" name="file" type="file" accept="image/*">
+  <button type="submit">Upload photo</button>
+</form>
