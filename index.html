@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Volt Memory Bank</title>
-  <meta name="theme-color" content="#7c3aed" />
+  <meta name="theme-color" content="#7c3aed"/>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-50">
@@ -12,7 +12,7 @@
     <!-- Header -->
     <div class="bg-white rounded-lg shadow p-6 mb-6">
       <h1 class="text-3xl font-bold text-gray-800 mb-2">🧠 Volt Memory Bank</h1>
-      <p class="text-gray-600">Test backend and memory functions</p>
+      <p class="text-gray-600">Test backend + browse your ChatGPT archive</p>
     </div>
 
     <!-- Test API -->
@@ -27,19 +27,27 @@
       </div>
     </div>
 
-    <!-- Context -->
+    <!-- ChatGPT Archive -->
     <div class="bg-white rounded-lg shadow p-6 mb-6">
-      <h2 class="text-xl font-semibold text-gray-800 mb-4">3-Month Context</h2>
-      <textarea id="contextSummary" class="w-full h-32 p-3 border border-gray-300 rounded-lg mb-4" placeholder="Describe your 3-month ChatGPT relationship…"></textarea>
-      <button id="btnSaveContext" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">Save Context</button>
-    </div>
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-xl font-semibold text-gray-800">ChatGPT Conversation Archive</h2>
+        <button id="btnReload" class="text-sm px-3 py-1 rounded bg-gray-100 hover:bg-gray-200">Reload</button>
+      </div>
 
-    <!-- Conversation -->
-    <div class="bg-white rounded-lg shadow p-6 mb-6">
-      <h2 class="text-xl font-semibold text-gray-800 mb-4">Save Conversation</h2>
-      <input id="conversationTitle" placeholder="Title…" class="w-full p-3 border border-gray-300 rounded-lg mb-3"/>
-      <textarea id="conversationContent" placeholder="Paste chat…" class="w-full h-32 p-3 border border-gray-300 rounded-lg mb-4"></textarea>
-      <button id="btnSaveConversation" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Save Conversation</button>
+      <input id="search" placeholder="Search titles & messages…" class="w-full p-3 border border-gray-300 rounded-lg mb-3"/>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <ul id="list" class="space-y-2"></ul>
+        </div>
+        <div>
+          <div id="viewer" class="border border-gray-200 rounded-lg p-3 h-[420px] overflow-y-auto bg-gray-50">
+            <p class="text-gray-500">Select a conversation…</p>
+          </div>
+        </div>
+      </div>
+
+      <div id="archiveNote" class="text-xs text-gray-500 mt-3"></div>
     </div>
   </div>
 
@@ -49,107 +57,117 @@
       const el = document.getElementById('results');
       el.innerHTML = `<pre class="${ok ? 'text-green-600' : 'text-red-600'} whitespace-pre-wrap text-sm">${message}</pre>`;
     }
+    const $ = id => document.getElementById(id);
 
-    // ---------- Ping (KNOWN-WORKING PATH) ----------
+    // ---------- Ping (KNOWN GOOD) ----------
     async function testPing() {
       try {
         show('Testing ping…', true);
         const res = await fetch('/.netlify/functions/ping');
         const raw = await res.text();
         let data; try { data = JSON.parse(raw); } catch { data = null; }
-        const ok = res.ok && data && (data.ok === true || data.msg === 'pong' || data.message);
+        const ok = res.ok && (data?.ok === true || data?.msg === 'pong' || data?.message);
         if (ok) show(`✅ Ping:\n${JSON.stringify(data ?? {raw}, null, 2)}`, true);
         else show(`❌ Ping error:\nHTTP ${res.status}\n${raw}`, false);
-      } catch (err) {
-        show(`❌ Ping failed: ${err.message}`, false);
-      }
+      } catch (err) { show(`❌ Ping failed: ${err.message}`, false); }
     }
 
-    // ---------- Memory (works with current dummy + future real API) ----------
+    // ---------- Memory (simple GET works with your current memory.js) ----------
     async function testMemory() {
       try {
         show('Testing memory…', true);
-        // Use GET so it works with your current simple memory.js
         const res = await fetch('/.netlify/functions/memory');
         const raw = await res.text();
         let data; try { data = JSON.parse(raw); } catch { data = null; }
-
-        // Accept any of these as success:
-        // { ok: true, ... }  OR  { status: "success", ... }  OR  { message: "Memory function alive ✅" }
-        const ok =
-          res.ok && (
-            (data && data.ok === true) ||
-            (data && data.status === 'success') ||
-            (data && typeof data.message === 'string' && data.message.includes('alive')) ||
-            (!data && raw.trim() !== '')
-          );
-
+        const ok = res.ok && (
+          data?.ok === true ||
+          data?.status === 'success' ||
+          (typeof data?.message === 'string' && data.message.includes('alive')) ||
+          (!data && raw.trim() !== '')
+        );
         if (ok) show(`✅ Memory:\n${JSON.stringify(data ?? {raw}, null, 2)}`, true);
         else show(`❌ Memory error:\nHTTP ${res.status}\n${raw}`, false);
-      } catch (err) {
-        show(`❌ Memory failed: ${err.message}`, false);
-      }
+      } catch (err) { show(`❌ Memory failed: ${err.message}`, false); }
     }
 
-    // ---------- Save Context (POST; treats any 200 as success for now) ----------
-    async function saveContext() {
-      try {
-        const content = document.getElementById('contextSummary').value.trim();
-        if (!content) return show('❌ Enter context first', false);
+    // ---------- Archive (list + search + view) ----------
+    async function fetchList(q = '') {
+      const url = q ? `/.netlify/functions/conversations?q=${encodeURIComponent(q)}` : '/.netlify/functions/conversations';
+      const res = await fetch(url);
+      const data = await res.json();
+      const list = data.conversations || [];
+      const sample = !!data.sample;
 
-        const res = await fetch('/.netlify/functions/memory', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: 'context-summary', text: content })
-        });
-        const raw = await res.text();
-        let data; try { data = JSON.parse(raw); } catch { data = null; }
-        if (res.ok) show(`✅ Context saved\n${data ? JSON.stringify(data, null, 2) : ''}`, true);
-        else show(`❌ Context error:\nHTTP ${res.status}\n${raw}`, false);
-      } catch (err) {
-        show(`❌ Save context failed: ${err.message}`, false);
-      }
-    }
-
-    // ---------- Save Conversation (POST; treats any 200 as success) ----------
-    async function saveConversation() {
-      try {
-        const title = document.getElementById('conversationTitle').value.trim();
-        const content = document.getElementById('conversationContent').value.trim();
-        if (!title || !content) return show('❌ Enter title & content', false);
-
-        const res = await fetch('/.netlify/functions/memory', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'conversation',
-            text: `Title: ${title}\n\n${content}`,
-            meta: { category: 'general' }
-          })
-        });
-        const raw = await res.text();
-        let data; try { data = JSON.parse(raw); } catch { data = null; }
-        if (res.ok) {
-          show(`✅ Conversation saved\n${data ? JSON.stringify(data, null, 2) : ''}`, true);
-          document.getElementById('conversationTitle').value = '';
-          document.getElementById('conversationContent').value = '';
-        } else {
-          show(`❌ Conversation error:\nHTTP ${res.status}\n${raw}`, false);
+      const ul = $('list');
+      ul.innerHTML = '';
+      if (list.length === 0) {
+        ul.innerHTML = `<li class="text-gray-500">No conversations found.</li>`;
+      } else {
+        for (const c of list) {
+          const li = document.createElement('li');
+          li.className = "border border-gray-200 rounded-lg p-3 hover:bg-gray-50 cursor-pointer";
+          li.innerHTML = `
+            <div class="font-semibold">${c.title || 'Untitled'}</div>
+            <div class="text-xs text-gray-500">${c.count ?? 0} messages · ${c.created ? new Date(c.created*1000 || c.created).toLocaleString() : ''}</div>
+          `;
+          li.addEventListener('click', () => openThread(c.id));
+          ul.appendChild(li);
         }
-      } catch (err) {
-        show(`❌ Save conversation failed: ${err.message}`, false);
+      }
+      $('archiveNote').textContent = sample
+        ? 'Showing sample data. To use your real history, upload data/conversations.json (ChatGPT export).'
+        : '';
+    }
+
+    async function openThread(id) {
+      try {
+        const res = await fetch(`/.netlify/functions/conversations?id=${encodeURIComponent(id)}`);
+        const data = await res.json();
+        const box = $('viewer');
+        if (data?.ok && data?.thread) {
+          const t = data.thread;
+          const msgs = t.messages || [];
+          if (msgs.length === 0) {
+            box.innerHTML = `<div class="text-gray-500">No messages in this thread.</div>`;
+            return;
+          }
+          box.innerHTML = msgs.map(m => `
+            <div class="mb-3">
+              <div class="text-xs ${m.role === 'assistant' ? 'text-purple-700' : 'text-blue-700'} font-semibold">${m.role}</div>
+              <div class="whitespace-pre-wrap bg-white border border-gray-200 rounded p-2">${(m.content || '').replace(/[<>&]/g, s=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[s]))}</div>
+              <div class="text-[10px] text-gray-400 mt-1">${m.ts ? new Date(m.ts*1000 || m.ts).toLocaleString() : ''}</div>
+            </div>
+          `).join('');
+        } else {
+          // if sample ID or not found
+          $('viewer').innerHTML = `
+            <div class="mb-3">
+              <div class="text-xs text-blue-700 font-semibold">user</div>
+              <div class="whitespace-pre-wrap bg-white border border-gray-200 rounded p-2">Sample: show me my archive</div>
+              <div class="text-[10px] text-gray-400 mt-1">${new Date().toLocaleString()}</div>
+            </div>
+            <div class="mb-3">
+              <div class="text-xs text-purple-700 font-semibold">assistant</div>
+              <div class="whitespace-pre-wrap bg-white border border-gray-200 rounded p-2">Archive viewer is alive ✅</div>
+              <div class="text-[10px] text-gray-400 mt-1">${new Date().toLocaleString()}</div>
+            </div>
+          `;
+        }
+      } catch (e) {
+        $('viewer').innerHTML = `<div class="text-red-600">Failed to load thread: ${e.message}</div>`;
       }
     }
 
-    // Wire buttons
-    document.getElementById('btnPing').addEventListener('click', testPing);
-    document.getElementById('btnMemory').addEventListener('click', testMemory);
-    document.getElementById('btnSaveContext').addEventListener('click', saveContext);
-    document.getElementById('btnSaveConversation').addEventListener('click', saveConversation);
+    // wire events
+    $('btnPing').addEventListener('click', testPing);
+    $('btnMemory').addEventListener('click', testMemory);
+    $('btnReload').addEventListener('click', () => fetchList($('search').value));
+    $('search').addEventListener('input', e => fetchList(e.target.value));
 
-    // Boot message
-    document.addEventListener('DOMContentLoaded', () => {
+    // boot
+    document.addEventListener('DOMContentLoaded', async () => {
       show('Page loaded. Ready to test.', true);
+      await fetchList('');
     });
   </script>
 </body>
