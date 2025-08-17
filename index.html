@@ -1,252 +1,252 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Volt PWA - Memory Bank</title>
-    
-    <!-- PWA Manifest -->
-    <link rel="manifest" href="/manifest.webmanifest">
-    
-    <!-- Meta tags for PWA -->
-    <meta name="theme-color" content="#7c3aed">
-    <meta name="description" content="Volt PWA with ChatGPT Memory Bank">
-    
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <style>
-        body {
-            margin: 0;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-                'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-                sans-serif;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Volt PWA - Memory Bank</title>
+
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="/manifest.webmanifest" />
+
+  <!-- Meta tags for PWA -->
+  <meta name="theme-color" content="#7c3aed" />
+  <meta name="description" content="Volt PWA with ChatGPT Memory Bank" />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+        'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+  </style>
 </head>
 <body class="bg-gray-50">
-    <div class="max-w-4xl mx-auto p-6">
-        <!-- Header -->
-        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
-            <h1 class="text-3xl font-bold text-gray-800 mb-2">
-                🧠 Volt Memory Bank - Simple Version
-            </h1>
-            <p class="text-gray-600 mb-4">
-                Basic version to test functionality while we debug the full system
-            </p>
-        </div>
-
-        <!-- Test API Connection -->
-        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
-            <h2 class="text-xl font-semibold text-gray-800 mb-4">Test Backend Connection</h2>
-            
-            <div class="flex gap-3 mb-4">
-                <button 
-                    onclick="testPing()" 
-                    class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-                >
-                    Test Ping Function
-                </button>
-                
-                <button 
-                    onclick="testMemory()" 
-                    class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
-                >
-                    Test Memory Function
-                </button>
-            </div>
-            
-            <div id="results" class="bg-gray-50 p-4 rounded-lg min-h-20">
-                <p class="text-gray-500">Click buttons to test your functions...</p>
-            </div>
-        </div>
-
-        <!-- Simple Memory Bank -->
-        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
-            <h2 class="text-xl font-semibold text-gray-800 mb-4">3-Month Context Storage</h2>
-            
-            <textarea 
-                id="contextSummary"
-                placeholder="Describe your 3-month ChatGPT relationship here..."
-                class="w-full h-32 p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 mb-4"
-            ></textarea>
-            
-            <button 
-                onclick="saveContext()" 
-                class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
-            >
-                Save Context
-            </button>
-        </div>
-
-        <!-- Simple Conversation Storage -->
-        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
-            <h2 class="text-xl font-semibold text-gray-800 mb-4">Save Important Conversation</h2>
-            
-            <input 
-                type="text" 
-                id="conversationTitle"
-                placeholder="Conversation title..."
-                class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mb-3"
-            >
-            
-            <textarea 
-                id="conversationContent"
-                placeholder="Paste your ChatGPT conversation here..."
-                class="w-full h-32 p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mb-4"
-            ></textarea>
-            
-            <button 
-                onclick="saveConversation()" 
-                class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-            >
-                Save Conversation
-            </button>
-        </div>
-
-        <!-- Context Generator -->
-        <div class="bg-white rounded-lg shadow-lg p-6">
-            <h2 class="text-xl font-semibold text-gray-800 mb-4">Generate ChatGPT Context</h2>
-            <p class="text-gray-600 mb-4">
-                Generate a context prompt to restore your ChatGPT relationship
-            </p>
-            
-            <button 
-                onclick="generateContext()" 
-                class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
-            >
-                Generate & Copy Context
-            </button>
-        </div>
+  <div class="max-w-4xl mx-auto p-6">
+    <!-- Header -->
+    <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+      <h1 class="text-3xl font-bold text-gray-800 mb-2">🧠 Volt Memory Bank - Simple Version</h1>
+      <p class="text-gray-600 mb-4">Basic version to test functionality while we debug the full system</p>
     </div>
 
-    <script>
-        // Simple JavaScript functions (no React complexity)
-        
-        function updateResults(message, isError = false) {
-            const results = document.getElementById('results');
-            results.innerHTML = `<p class="${isError ? 'text-red-600' : 'text-green-600'}">${message}</p>`;
-        }
+    <!-- Test API Connection -->
+    <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+      <h2 class="text-xl font-semibold text-gray-800 mb-4">Test Backend Connection</h2>
 
-        async function testPing() {
-            try {
-                updateResults('Testing ping function...');
-                const response = await fetch('/.netlify/functions/ping');
-                const data = await response.json();
-                updateResults(`✅ Ping successful: ${JSON.stringify(data, null, 2)}`);
-            } catch (error) {
-                updateResults(`❌ Ping failed: ${error.message}`, true);
-            }
-        }
+      <div class="flex gap-3 mb-4">
+        <button onclick="testPing()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+          Test Ping Function
+        </button>
 
-        async function testMemory() {
-            try {
-                updateResults('Testing memory function...');
-                const response = await fetch('/.netlify/functions/memory');
-                const data = await response.json();
-                updateResults(`✅ Memory function works: ${JSON.stringify(data, null, 2)}`);
-            } catch (error) {
-                updateResults(`❌ Memory function failed: ${error.message}`, true);
-            }
-        }
+        <button onclick="testMemory()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+          Test Memory Function
+        </button>
+      </div>
 
-        async function saveContext() {
-            try {
-                const content = document.getElementById('contextSummary').value;
-                if (!content.trim()) {
-                    updateResults('❌ Please enter some context first', true);
-                    return;
-                }
+      <div id="results" class="bg-gray-50 p-4 rounded-lg min-h-20">
+        <p class="text-gray-500">Click buttons to test your functions...</p>
+      </div>
+    </div>
 
-                updateResults('Saving context...');
-                const response = await fetch('/.netlify/functions/memory', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        type: 'context-summary',
-                        content: content
-                    })
-                });
-                
-                const data = await response.json();
-                if (data.status === 'success') {
-                    updateResults('✅ Context saved successfully!');
-                } else {
-                    updateResults(`❌ Failed to save: ${data.message}`, true);
-                }
-            } catch (error) {
-                updateResults(`❌ Error saving context: ${error.message}`, true);
-            }
-        }
+    <!-- Simple Memory Bank -->
+    <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+      <h2 class="text-xl font-semibold text-gray-800 mb-4">3-Month Context Storage</h2>
 
-        async function saveConversation() {
-            try {
-                const title = document.getElementById('conversationTitle').value;
-                const content = document.getElementById('conversationContent').value;
-                
-                if (!title.trim() || !content.trim()) {
-                    updateResults('❌ Please enter both title and content', true);
-                    return;
-                }
+      <textarea
+        id="contextSummary"
+        placeholder="Describe your 3-month ChatGPT relationship here..."
+        class="w-full h-32 p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 mb-4"
+      ></textarea>
 
-                updateResults('Saving conversation...');
-                const response = await fetch('/.netlify/functions/memory', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        type: 'conversation',
-                        title: title,
-                        content: content,
-                        category: 'general',
-                        importance: 'medium',
-                        tags: []
-                    })
-                });
-                
-                const data = await response.json();
-                if (data.status === 'success') {
-                    updateResults('✅ Conversation saved successfully!');
-                    document.getElementById('conversationTitle').value = '';
-                    document.getElementById('conversationContent').value = '';
-                } else {
-                    updateResults(`❌ Failed to save: ${data.message}`, true);
-                }
-            } catch (error) {
-                updateResults(`❌ Error saving conversation: ${error.message}`, true);
-            }
-        }
+      <button onclick="saveContext()" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">
+        Save Context
+      </button>
+    </div>
 
-        async function generateContext() {
-            try {
-                updateResults('Generating context...');
-                const response = await fetch('/.netlify/functions/memory?action=generate-context');
-                const data = await response.json();
-                
-                if (data.status === 'success') {
-                    const context = data.data.context;
-                    
-                    // Copy to clipboard
-                    if (navigator.clipboard) {
-                        await navigator.clipboard.writeText(context);
-                        updateResults('✅ Context generated and copied to clipboard! Paste this into ChatGPT.');
-                    } else {
-                        // Fallback for older browsers
-                        updateResults(`✅ Context generated: ${context.substring(0, 200)}...`);
-                    }
-                } else {
-                    updateResults(`❌ Failed to generate: ${data.message}`, true);
-                }
-            } catch (error) {
-                updateResults(`❌ Error generating context: ${error.message}`, true);
-            }
-        }
+    <!-- Simple Conversation Storage -->
+    <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+      <h2 class="text-xl font-semibold text-gray-800 mb-4">Save Important Conversation</h2>
 
-        // Test on page load
-        document.addEventListener('DOMContentLoaded', () => {
-            updateResults('Page loaded successfully! Click buttons to test your functions.');
+      <input
+        type="text"
+        id="conversationTitle"
+        placeholder="Conversation title..."
+        class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mb-3"
+      />
+
+      <textarea
+        id="conversationContent"
+        placeholder="Paste your ChatGPT conversation here..."
+        class="w-full h-32 p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mb-4"
+      ></textarea>
+
+      <button onclick="saveConversation()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+        Save Conversation
+      </button>
+    </div>
+
+    <!-- Context Generator -->
+    <div class="bg-white rounded-lg shadow-lg p-6">
+      <h2 class="text-xl font-semibold text-gray-800 mb-4">Generate ChatGPT Context</h2>
+      <p class="text-gray-600 mb-4">Generate a context prompt to restore your ChatGPT relationship</p>
+
+      <button onclick="generateContext()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+        Generate & Copy Context
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // ------------ Volt helpers ------------
+    function getSessionId() {
+      let id = localStorage.getItem("volt_session_id");
+      if (!id) { id = crypto.randomUUID(); localStorage.setItem("volt_session_id", id); }
+      return id;
+    }
+    function api(path) { return `/api${path}`; } // use your /api/* redirect
+
+    // ------------ UI helper ------------
+    function updateResults(message, isError = false) {
+      const results = document.getElementById('results');
+      results.innerHTML = `<pre class="${isError ? 'text-red-600' : 'text-green-600'} whitespace-pre-wrap text-sm">${message}</pre>`;
+    }
+
+    // ------------ Tests ------------
+    async function testPing() {
+      try {
+        updateResults('Testing ping function...');
+        const response = await fetch(api('/ping'));
+        const data = await response.json();
+        updateResults(`✅ Ping successful:\n${JSON.stringify(data, null, 2)}`);
+      } catch (error) {
+        updateResults(`❌ Ping failed: ${error.message}`, true);
+      }
+    }
+
+    async function testMemory() {
+      try {
+        updateResults('Testing memory function...');
+        const response = await fetch(api('/memory'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Volt-User': getSessionId()
+          },
+          body: JSON.stringify({
+            type: 'note',
+            text: 'Test memory entry from button',
+            meta: { origin: 'ui', ts: new Date().toISOString() }
+          })
         });
-    </script>
+        const data = await response.json();
+        if (data.ok) {
+          updateResults(`✅ Memory saved:\n${JSON.stringify(data.entry, null, 2)}`);
+        } else {
+          updateResults(`❌ Memory save failed: ${data.error || 'Unknown error'}`, true);
+        }
+      } catch (error) {
+        updateResults(`❌ Memory function failed: ${error.message}`, true);
+      }
+    }
+
+    // ------------ Saves ------------
+    async function saveContext() {
+      try {
+        const content = document.getElementById('contextSummary').value;
+        if (!content.trim()) return updateResults('❌ Please enter some context first', true);
+
+        updateResults('Saving context...');
+        const response = await fetch(api('/memory'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Volt-User': getSessionId()
+          },
+          body: JSON.stringify({
+            type: 'context-summary',
+            text: content,
+            meta: { source: 'context-box' }
+          })
+        });
+        const data = await response.json();
+        if (data.ok) {
+          updateResults('✅ Context saved successfully!');
+        } else {
+          updateResults(`❌ Failed to save: ${data.error || 'Unknown error'}`, true);
+        }
+      } catch (error) {
+        updateResults(`❌ Error saving context: ${error.message}`, true);
+      }
+    }
+
+    async function saveConversation() {
+      try {
+        const title = document.getElementById('conversationTitle').value;
+        const content = document.getElementById('conversationContent').value;
+        if (!title.trim() || !content.trim()) return updateResults('❌ Please enter both title and content', true);
+
+        updateResults('Saving conversation...');
+        const response = await fetch(api('/memory'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Volt-User': getSessionId()
+          },
+          body: JSON.stringify({
+            type: 'conversation',
+            text: `Title: ${title}\n\n${content}`,
+            meta: { category: 'general', importance: 'medium', tags: [] }
+          })
+        });
+        const data = await response.json();
+        if (data.ok) {
+          updateResults('✅ Conversation saved successfully!');
+          document.getElementById('conversationTitle').value = '';
+          document.getElementById('conversationContent').value = '';
+        } else {
+          updateResults(`❌ Failed to save: ${data.error || 'Unknown error'}`, true);
+        }
+      } catch (error) {
+        updateResults(`❌ Error saving conversation: ${error.message}`, true);
+      }
+    }
+
+    // ------------ Generate & Copy Context ------------
+    async function generateContext() {
+      try {
+        updateResults('Generating context...');
+        const res = await fetch(api('/memory/search?q='), {
+          headers: { 'X-Volt-User': getSessionId() }
+        });
+        const data = await res.json();
+        const items = (data.results || []).slice(0, 20);
+        const context = [
+          'Volt Memory – Quick Context',
+          '---',
+          ...items.map((e, i) => `${i + 1}. [${e.type}] ${e.text}`),
+          '---',
+          'End of context.'
+        ].join('\n');
+
+        if (navigator.clipboard) {
+          await navigator.clipboard.writeText(context);
+          updateResults('✅ Context generated and copied to clipboard!');
+        } else {
+          updateResults(`✅ Context generated:\n${context.substring(0, 200)}...`);
+        }
+      } catch (error) {
+        updateResults(`❌ Error generating context: ${error.message}`, true);
+      }
+    }
+
+    // On load
+    document.addEventListener('DOMContentLoaded', () => {
+      updateResults('Page loaded successfully! Click buttons to test your functions.');
+    });
+  </script>
 </body>
 </html>
