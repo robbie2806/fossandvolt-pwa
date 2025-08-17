@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>🦊 White Fox • Volt</title>
+  <title>Volt</title>
 
   <!-- PWA chrome -->
   <meta name="theme-color" content="#ff3ea5"/>
@@ -14,36 +14,36 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     :root{
-      --wf-pink:#ff3ea5;
-      --wf-pink-2:#ff6bb5;
-      --wf-pink-3:#ffa3d1;
+      --volt-pink:#ff3ea5;
+      --volt-pink-2:#ff6bb5;
+      --volt-pink-3:#ffa3d1;
     }
-    .wf-card{background:#fff;border-radius:16px;box-shadow:0 8px 28px rgba(255,62,165,.12),0 2px 6px rgba(0,0,0,.05)}
-    .wf-pill{border-radius:9999px}
-    .wf-gradient{background:linear-gradient(135deg,var(--wf-pink) 0%,var(--wf-pink-2) 45%,var(--wf-pink-3) 100%)}
-    .wf-soft{background:linear-gradient(180deg, rgba(255,62,165,.06), rgba(255,62,165,.00))}
-    .wf-btn{transition:transform .05s ease}
-    .wf-btn:active{transform:translateY(1px)}
-    .wf-input:focus{outline:none;box-shadow:0 0 0 3px rgba(255,62,165,.25)}
+    .volt-card{background:#fff;border-radius:16px;box-shadow:0 8px 28px rgba(255,62,165,.12),0 2px 6px rgba(0,0,0,.05)}
+    .volt-pill{border-radius:9999px}
+    .volt-gradient{background:linear-gradient(135deg,var(--volt-pink) 0%,var(--volt-pink-2) 45%,var(--volt-pink-3) 100%)}
+    .volt-soft{background:linear-gradient(180deg, rgba(255,62,165,.06), rgba(255,62,165,.00))}
+    .volt-btn{transition:transform .05s ease}
+    .volt-btn:active{transform:translateY(1px)}
+    .volt-input:focus{outline:none;box-shadow:0 0 0 3px rgba(255,62,165,.25)}
   </style>
 </head>
 
-<body class="min-h-screen wf-soft">
+<body class="min-h-screen volt-soft">
   <!-- Header -->
-  <div class="wf-gradient text-white">
+  <div class="volt-gradient text-white">
     <div class="max-w-4xl mx-auto px-6 py-6">
-      <h1 class="text-3xl font-extrabold tracking-tight">🦊 White Fox — Volt</h1>
-      <p class="opacity-95">Hot-pink PWA for archive + live chat</p>
+      <h1 class="text-3xl font-extrabold tracking-tight">⚡ Volt</h1>
+      <p class="opacity-95">Hot-pink PWA for live chat + archive</p>
     </div>
   </div>
 
   <div class="max-w-4xl mx-auto p-6 space-y-6">
     <!-- Test API -->
-    <div class="wf-card p-6">
+    <div class="volt-card p-6">
       <h2 class="text-xl font-semibold text-gray-800 mb-4">Test Backend</h2>
       <div class="flex gap-3 mb-4">
-        <button id="btnPing" class="wf-btn wf-pill bg-pink-600 text-white px-4 py-2 hover:bg-pink-700">Test Ping</button>
-        <button id="btnMemory" class="wf-btn wf-pill bg-fuchsia-600 text-white px-4 py-2 hover:bg-fuchsia-700">Test Memory</button>
+        <button id="btnPing" class="volt-btn volt-pill bg-pink-600 text-white px-4 py-2 hover:bg-pink-700">Test Ping</button>
+        <button id="btnMemory" class="volt-btn volt-pill bg-fuchsia-600 text-white px-4 py-2 hover:bg-fuchsia-700">Test Memory</button>
       </div>
       <div id="results" class="bg-pink-50/40 border border-pink-100 rounded-xl p-4 min-h-20">
         <p class="text-pink-700/80">Click a button to test…</p>
@@ -51,25 +51,25 @@
     </div>
 
     <!-- Live Chat -->
-    <div class="wf-card p-6">
-      <h2 class="text-xl font-semibold text-gray-800 mb-4">Live Chat with Volt</h2>
+    <div class="volt-card p-6">
+      <h2 class="text-xl font-semibold text-gray-800 mb-4">Live Chat</h2>
       <div id="chatLog" class="border border-pink-100 rounded-xl p-3 h-72 overflow-y-auto bg-white mb-3">
         <div class="text-gray-500">Say hi 👋 — works even without an API key (echo mode).</div>
       </div>
       <div class="flex gap-2">
-        <textarea id="chatInput" class="wf-input flex-1 p-3 border border-pink-200 rounded-xl" placeholder="Type a message…"></textarea>
-        <button id="btnSend" class="wf-btn wf-pill bg-pink-600 text-white px-5 py-2 hover:bg-pink-700">Send</button>
+        <textarea id="chatInput" class="volt-input flex-1 p-3 border border-pink-200 rounded-xl" placeholder="Type a message…"></textarea>
+        <button id="btnSend" class="volt-btn volt-pill bg-pink-600 text-white px-5 py-2 hover:bg-pink-700">Send</button>
       </div>
     </div>
 
     <!-- ChatGPT Archive -->
-    <div class="wf-card p-6">
+    <div class="volt-card p-6">
       <div class="flex items-center justify-between mb-3">
-        <h2 class="text-xl font-semibold text-gray-800">ChatGPT Conversation Archive</h2>
-        <button id="btnReload" class="wf-btn text-sm px-3 py-1 wf-pill bg-pink-50 hover:bg-pink-100 text-pink-700">Reload</button>
+        <h2 class="text-xl font-semibold text-gray-800">Conversation Archive</h2>
+        <button id="btnReload" class="volt-btn text-sm px-3 py-1 volt-pill bg-pink-50 hover:bg-pink-100 text-pink-700">Reload</button>
       </div>
 
-      <input id="search" placeholder="Search titles & messages…" class="wf-input w-full p-3 border border-pink-200 rounded-xl mb-3"/>
+      <input id="search" placeholder="Search titles & messages…" class="volt-input w-full p-3 border border-pink-200 rounded-xl mb-3"/>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div><ul id="list" class="space-y-2"></ul></div>
@@ -84,9 +84,10 @@
     </div>
   </div>
 
-  <!-- =================== JS (same logic; works with your existing functions) =================== -->
+  <!-- =================== JS (works with your existing functions) =================== -->
   <script>
     const $ = id => document.getElementById(id);
+
     function show(message, ok = true) {
       $('results').innerHTML = `<pre class="${ok ? 'text-green-700' : 'text-rose-600'} whitespace-pre-wrap text-sm">${message}</pre>`;
     }
