@@ -12,7 +12,7 @@
     <!-- Header -->
     <div class="bg-white rounded-lg shadow p-6 mb-6">
       <h1 class="text-3xl font-bold text-gray-800 mb-2">🧠 Volt Memory Bank</h1>
-      <p class="text-gray-600">Test backend + browse your ChatGPT archive</p>
+      <p class="text-gray-600">Test backend, browse archive, and chat with Volt in your PWA.</p>
     </div>
 
     <!-- Test API -->
@@ -24,6 +24,18 @@
       </div>
       <div id="results" class="bg-gray-50 p-4 rounded-lg min-h-20">
         <p class="text-gray-500">Click a button to test…</p>
+      </div>
+    </div>
+
+    <!-- Chat (Live) -->
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+      <h2 class="text-xl font-semibold text-gray-800 mb-4">Live Chat with Volt</h2>
+      <div id="chatLog" class="border border-gray-200 rounded-lg p-3 h-72 overflow-y-auto bg-gray-50 mb-3">
+        <div class="text-gray-500">Say hi 👋 — this works even without an API key (echo mode).</div>
+      </div>
+      <div class="flex gap-2">
+        <textarea id="chatInput" class="flex-1 p-3 border border-gray-300 rounded-lg" placeholder="Type a message…"></textarea>
+        <button id="btnSend" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">Send</button>
       </div>
     </div>
 
@@ -52,14 +64,15 @@
   </div>
 
   <script>
-    // ---------- UI helper ----------
-    function show(message, ok = true) {
-      const el = document.getElementById('results');
-      el.innerHTML = `<pre class="${ok ? 'text-green-600' : 'text-red-600'} whitespace-pre-wrap text-sm">${message}</pre>`;
-    }
     const $ = id => document.getElementById(id);
 
-    // ---------- Ping (KNOWN GOOD) ----------
+    // ---------- UI helper ----------
+    function show(message, ok = true) {
+      const el = $('results');
+      el.innerHTML = `<pre class="${ok ? 'text-green-600' : 'text-red-600'} whitespace-pre-wrap text-sm">${message}</pre>`;
+    }
+
+    // ---------- Ping ----------
     async function testPing() {
       try {
         show('Testing ping…', true);
@@ -72,7 +85,7 @@
       } catch (err) { show(`❌ Ping failed: ${err.message}`, false); }
     }
 
-    // ---------- Memory (simple GET works with your current memory.js) ----------
+    // ---------- Memory (works with current GET memory.js) ----------
     async function testMemory() {
       try {
         show('Testing memory…', true);
@@ -90,7 +103,47 @@
       } catch (err) { show(`❌ Memory failed: ${err.message}`, false); }
     }
 
-    // ---------- Archive (list + search + view) ----------
+    // ---------- Live Chat ----------
+    function addBubble(role, text) {
+      const log = $('chatLog');
+      const color = role === 'user' ? 'bg-blue-50 border-blue-200' : 'bg-purple-50 border-purple-200';
+      const name  = role === 'user' ? 'You' : 'Volt';
+      const safe = (text || '').replace(/[<>&]/g, s => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[s]));
+      log.innerHTML += `<div class="mb-2">
+        <div class="text-xs ${role === 'user' ? 'text-blue-700' : 'text-purple-700'} font-semibold">${name}</div>
+        <div class="whitespace-pre-wrap border ${color} rounded p-2">${safe}</div>
+      </div>`;
+      log.scrollTop = log.scrollHeight;
+    }
+
+    async function sendChat() {
+      const btn = $('btnSend');
+      const input = $('chatInput');
+      const msg = input.value.trim();
+      if (!msg) return;
+      input.value = '';
+      addBubble('user', msg);
+
+      btn.disabled = true;
+      try {
+        const res = await fetch('/.netlify/functions/ask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: msg })
+        });
+        const raw = await res.text();
+        let data; try { data = JSON.parse(raw); } catch { data = null; }
+        if (res.ok && data?.ok) addBubble('assistant', data.reply || '(empty reply)');
+        else addBubble('assistant', `Error: HTTP ${res.status}\n${raw}`);
+      } catch (e) {
+        addBubble('assistant', `Error: ${e.message}`);
+      } finally {
+        btn.disabled = false;
+        input.focus();
+      }
+    }
+
+    // ---------- Archive ----------
     async function fetchList(q = '') {
       const url = q ? `/.netlify/functions/conversations?q=${encodeURIComponent(q)}` : '/.netlify/functions/conversations';
       const res = await fetch(url);
@@ -115,7 +168,7 @@
         }
       }
       $('archiveNote').textContent = sample
-        ? 'Showing sample data. To use your real history, upload data/conversations.json (ChatGPT export).'
+        ? 'Showing sample data. Upload data/conversations.json to see your real history.'
         : '';
     }
 
@@ -139,7 +192,6 @@
             </div>
           `).join('');
         } else {
-          // if sample ID or not found
           $('viewer').innerHTML = `
             <div class="mb-3">
               <div class="text-xs text-blue-700 font-semibold">user</div>
@@ -158,13 +210,15 @@
       }
     }
 
-    // wire events
+    // Wire buttons + keys
     $('btnPing').addEventListener('click', testPing);
     $('btnMemory').addEventListener('click', testMemory);
     $('btnReload').addEventListener('click', () => fetchList($('search').value));
     $('search').addEventListener('input', e => fetchList(e.target.value));
+    $('btnSend').addEventListener('click', sendChat);
+    $('chatInput').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } });
 
-    // boot
+    // Boot
     document.addEventListener('DOMContentLoaded', async () => {
       show('Page loaded. Ready to test.', true);
       await fetchList('');
