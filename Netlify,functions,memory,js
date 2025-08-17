@@ -1,0 +1,462 @@
+// Volt PWA - Complete Memory Bank Function
+// Handles ChatGPT conversation storage, context preservation, and memory management
+
+export default async (request, context) => {
+  const headers = {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS"
+  };
+
+  // Handle CORS
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { status: 200, headers });
+  }
+
+  try {
+    const url = new URL(request.url);
+    const action = url.searchParams.get('action') || 'list';
+    const category = url.searchParams.get('category') || 'all';
+    const search = url.searchParams.get('search') || '';
+
+    switch (request.method) {
+      case 'GET':
+        return handleGet(action, category, search, headers);
+      
+      case 'POST':
+        const body = await request.json();
+        return handlePost(action, body, headers);
+      
+      case 'PUT':
+        const updateBody = await request.json();
+        return handlePut(action, updateBody, headers);
+      
+      case 'DELETE':
+        const deleteBody = await request.json();
+        return handleDelete(action, deleteBody, headers);
+      
+      default:
+        throw new Error(`Method ${request.method} not allowed`);
+    }
+
+  } catch (error) {
+    console.error('Memory function error:', error);
+    
+    return new Response(JSON.stringify({
+      status: 'error',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    }), {
+      status: 500,
+      headers
+    });
+  }
+};
+
+// In-memory storage (replace with database in production)
+let memoryStorage = {
+  conversations: [],
+  contextSummary: '',
+  memoryBank: '',
+  projectNotes: {},
+  relationships: {},
+  preferences: {},
+  codeSnippets: [],
+  decisions: [],
+  goals: []
+};
+
+// Handle GET requests (retrieve memory data)
+async function handleGet(action, category, search, headers) {
+  try {
+    let responseData;
+
+    switch (action) {
+      case 'conversations':
+        responseData = getConversations(category, search);
+        break;
+        
+      case 'context':
+        responseData = getContextSummary();
+        break;
+        
+      case 'memory-bank':
+        responseData = getMemoryBank();
+        break;
+        
+      case 'export':
+        responseData = exportAllData();
+        break;
+        
+      case 'stats':
+        responseData = getMemoryStats();
+        break;
+        
+      case 'search':
+        responseData = searchMemories(search);
+        break;
+        
+      case 'generate-context':
+        responseData = generateChatGPTContext();
+        break;
+        
+      default:
+        responseData = getAllMemoryData();
+    }
+
+    return new Response(JSON.stringify({
+      status: 'success',
+      action,
+      data: responseData,
+      timestamp: new Date().toISOString()
+    }), {
+      status: 200,
+      headers
+    });
+
+  } catch (error) {
+    throw new Error(`GET operation failed: ${error.message}`);
+  }
+}
+
+// Handle POST requests (save new memory data)
+async function handlePost(action, body, headers) {
+  try {
+    if (!body || !body.type) {
+      throw new Error('Missing required field: type');
+    }
+
+    let savedData;
+    const timestamp = new Date().toISOString();
+
+    switch (body.type) {
+      case 'conversation':
+        savedData = saveConversation(body, timestamp);
+        break;
+        
+      case 'context-summary':
+        savedData = saveContextSummary(body, timestamp);
+        break;
+        
+      case 'memory-bank':
+        savedData = saveMemoryBank(body, timestamp);
+        break;
+        
+      case 'project-note':
+        savedData = saveProjectNote(body, timestamp);
+        break;
+        
+      case 'relationship':
+        savedData = saveRelationship(body, timestamp);
+        break;
+        
+      case 'preference':
+        savedData = savePreference(body, timestamp);
+        break;
+        
+      case 'code-snippet':
+        savedData = saveCodeSnippet(body, timestamp);
+        break;
+        
+      case 'decision':
+        savedData = saveDecision(body, timestamp);
+        break;
+        
+      case 'goal':
+        savedData = saveGoal(body, timestamp);
+        break;
+        
+      case 'import':
+        savedData = importMemoryData(body);
+        break;
+        
+      default:
+        throw new Error(`Unknown memory type: ${body.type}`);
+    }
+
+    return new Response(JSON.stringify({
+      status: 'success',
+      message: 'Memory saved successfully',
+      data: savedData,
+      timestamp
+    }), {
+      status: 200,
+      headers
+    });
+
+  } catch (error) {
+    throw new Error(`POST operation failed: ${error.message}`);
+  }
+}
+
+// Handle PUT requests (update existing memory)
+async function handlePut(action, body, headers) {
+  try {
+    if (!body || !body.id) {
+      throw new Error('Missing required field: id');
+    }
+
+    let updatedData;
+    const timestamp = new Date().toISOString();
+
+    switch (body.type) {
+      case 'conversation':
+        updatedData = updateConversation(body.id, body, timestamp);
+        break;
+        
+      case 'context-summary':
+        updatedData = updateContextSummary(body, timestamp);
+        break;
+        
+      default:
+        updatedData = updateGenericMemory(body.id, body, timestamp);
+    }
+
+    return new Response(JSON.stringify({
+      status: 'success',
+      message: 'Memory updated successfully',
+      data: updatedData,
+      timestamp
+    }), {
+      status: 200,
+      headers
+    });
+
+  } catch (error) {
+    throw new Error(`PUT operation failed: ${error.message}`);
+  }
+}
+
+// Handle DELETE requests (remove memory data)
+async function handleDelete(action, body, headers) {
+  try {
+    if (!body || !body.id) {
+      throw new Error('Missing required field: id');
+    }
+
+    let deletedData;
+
+    switch (body.type) {
+      case 'conversation':
+        deletedData = deleteConversation(body.id);
+        break;
+        
+      case 'all':
+        deletedData = clearAllMemories();
+        break;
+        
+      default:
+        deletedData = deleteGenericMemory(body.type, body.id);
+    }
+
+    return new Response(JSON.stringify({
+      status: 'success',
+      message: 'Memory deleted successfully',
+      data: deletedData,
+      timestamp: new Date().toISOString()
+    }), {
+      status: 200,
+      headers
+    });
+
+  } catch (error) {
+    throw new Error(`DELETE operation failed: ${error.message}`);
+  }
+}
+
+// Memory Management Functions
+
+function saveConversation(data, timestamp) {
+  const conversation = {
+    id: Date.now().toString(),
+    timestamp,
+    title: data.title || `Conversation ${new Date().toLocaleDateString()}`,
+    content: data.content,
+    tags: data.tags || [],
+    category: data.category || 'general',
+    importance: data.importance || 'medium',
+    project: data.project || null,
+    summary: data.summary || '',
+    participants: data.participants || ['user', 'chatgpt']
+  };
+  
+  memoryStorage.conversations.push(conversation);
+  return conversation;
+}
+
+function saveContextSummary(data, timestamp) {
+  memoryStorage.contextSummary = {
+    content: data.content,
+    lastUpdated: timestamp,
+    version: (memoryStorage.contextSummary?.version || 0) + 1
+  };
+  return memoryStorage.contextSummary;
+}
+
+function saveMemoryBank(data, timestamp) {
+  memoryStorage.memoryBank = {
+    content: data.content,
+    lastUpdated: timestamp,
+    category: data.category || 'general',
+    importance: data.importance || 'high'
+  };
+  return memoryStorage.memoryBank;
+}
+
+function saveProjectNote(data, timestamp) {
+  const projectId = data.project || 'default';
+  if (!memoryStorage.projectNotes[projectId]) {
+    memoryStorage.projectNotes[projectId] = [];
+  }
+  
+  const note = {
+    id: Date.now().toString(),
+    timestamp,
+    content: data.content,
+    title: data.title,
+    status: data.status || 'active'
+  };
+  
+  memoryStorage.projectNotes[projectId].push(note);
+  return note;
+}
+
+function saveCodeSnippet(data, timestamp) {
+  const snippet = {
+    id: Date.now().toString(),
+    timestamp,
+    title: data.title,
+    code: data.code,
+    language: data.language || 'javascript',
+    description: data.description || '',
+    tags: data.tags || [],
+    project: data.project || null
+  };
+  
+  memoryStorage.codeSnippets.push(snippet);
+  return snippet;
+}
+
+function getConversations(category, search) {
+  let conversations = memoryStorage.conversations;
+  
+  if (category && category !== 'all') {
+    conversations = conversations.filter(conv => conv.category === category);
+  }
+  
+  if (search) {
+    const searchLower = search.toLowerCase();
+    conversations = conversations.filter(conv => 
+      conv.content.toLowerCase().includes(searchLower) ||
+      conv.title.toLowerCase().includes(searchLower) ||
+      conv.tags.some(tag => tag.toLowerCase().includes(searchLower))
+    );
+  }
+  
+  return conversations.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+}
+
+function generateChatGPTContext() {
+  const recentConversations = memoryStorage.conversations
+    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+    .slice(0, 5);
+  
+  let context = "=== CONTEXT RESTORATION FOR CHATGPT ===\\n\\n";
+  
+  if (memoryStorage.contextSummary?.content) {
+    context += "RELATIONSHIP & PROJECT SUMMARY:\\n";
+    context += memoryStorage.contextSummary.content + "\\n\\n";
+  }
+  
+  if (memoryStorage.memoryBank?.content) {
+    context += "PERSISTENT MEMORY BANK:\\n";
+    context += memoryStorage.memoryBank.content + "\\n\\n";
+  }
+  
+  if (recentConversations.length > 0) {
+    context += "RECENT CONVERSATION HIGHLIGHTS:\\n";
+    recentConversations.forEach((conv, index) => {
+      context += `${index + 1}. [${conv.timestamp.split('T')[0]}] ${conv.title}\\n`;
+      if (conv.summary) {
+        context += `   Summary: ${conv.summary}\\n`;
+      }
+      context += `   Content Preview: ${conv.content.substring(0, 200)}...\\n\\n`;
+    });
+  }
+  
+  // Add important decisions
+  if (memoryStorage.decisions.length > 0) {
+    context += "KEY DECISIONS MADE:\\n";
+    memoryStorage.decisions.slice(-3).forEach(decision => {
+      context += `• ${decision.title}: ${decision.content}\\n`;
+    });
+    context += "\\n";
+  }
+  
+  // Add current goals
+  if (memoryStorage.goals.length > 0) {
+    context += "CURRENT GOALS:\\n";
+    memoryStorage.goals.filter(goal => goal.status === 'active').forEach(goal => {
+      context += `• ${goal.title}: ${goal.description}\\n`;
+    });
+    context += "\\n";
+  }
+  
+  context += "Please acknowledge this context and continue our conversation as if no reset occurred. ";
+  context += "Reference relevant information from above as needed in our ongoing work.";
+  
+  return {
+    context,
+    conversationCount: memoryStorage.conversations.length,
+    lastUpdated: new Date().toISOString(),
+    summary: `Context generated from ${memoryStorage.conversations.length} conversations and persistent memory bank`
+  };
+}
+
+function getMemoryStats() {
+  return {
+    totalConversations: memoryStorage.conversations.length,
+    totalProjects: Object.keys(memoryStorage.projectNotes).length,
+    totalCodeSnippets: memoryStorage.codeSnippets.length,
+    totalDecisions: memoryStorage.decisions.length,
+    totalGoals: memoryStorage.goals.length,
+    lastActivity: memoryStorage.conversations.length > 0 
+      ? memoryStorage.conversations.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0].timestamp
+      : null,
+    memoryBankLastUpdated: memoryStorage.memoryBank?.lastUpdated || null,
+    contextSummaryLastUpdated: memoryStorage.contextSummary?.lastUpdated || null
+  };
+}
+
+function exportAllData() {
+  return {
+    ...memoryStorage,
+    exportDate: new Date().toISOString(),
+    version: '1.0'
+  };
+}
+
+function importMemoryData(data) {
+  if (data.importData && typeof data.importData === 'object') {
+    memoryStorage = {
+      ...memoryStorage,
+      ...data.importData,
+      importedAt: new Date().toISOString()
+    };
+    return { imported: true, recordCount: memoryStorage.conversations.length };
+  }
+  throw new Error('Invalid import data format');
+}
+
+function getAllMemoryData() {
+  return {
+    conversations: memoryStorage.conversations.slice(-10), // Last 10 for overview
+    contextSummary: memoryStorage.contextSummary,
+    memoryBank: memoryStorage.memoryBank,
+    stats: getMemoryStats(),
+    recentActivity: memoryStorage.conversations
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      .slice(0, 3)
+  };
+}
