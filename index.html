@@ -1,39 +1,41 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Volt PWA - Memory Bank</title>
+  <title>Volt Memory Bank</title>
+  <meta name="theme-color" content="#7c3aed" />
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-50">
   <div class="max-w-4xl mx-auto p-6">
-    <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+    <!-- Header -->
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
       <h1 class="text-3xl font-bold text-gray-800 mb-2">🧠 Volt Memory Bank</h1>
-      <p class="text-gray-600 mb-4">Test backend and memory functions</p>
+      <p class="text-gray-600">Test backend and memory functions</p>
     </div>
 
     <!-- Test API -->
-    <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
       <h2 class="text-xl font-semibold text-gray-800 mb-4">Test Backend</h2>
       <div class="flex gap-3 mb-4">
         <button onclick="testPing()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Test Ping</button>
         <button onclick="testMemory()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">Test Memory</button>
       </div>
       <div id="results" class="bg-gray-50 p-4 rounded-lg min-h-20">
-        <p class="text-gray-500">Click buttons to test…</p>
+        <p class="text-gray-500">Click a button to test…</p>
       </div>
     </div>
 
     <!-- Context -->
-    <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
       <h2 class="text-xl font-semibold text-gray-800 mb-4">3-Month Context</h2>
-      <textarea id="contextSummary" class="w-full h-32 p-3 border border-gray-300 rounded-lg mb-4"></textarea>
+      <textarea id="contextSummary" class="w-full h-32 p-3 border border-gray-300 rounded-lg mb-4" placeholder="Describe your 3-month ChatGPT relationship…"></textarea>
       <button onclick="saveContext()" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">Save Context</button>
     </div>
 
     <!-- Conversation -->
-    <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
       <h2 class="text-xl font-semibold text-gray-800 mb-4">Save Conversation</h2>
       <input id="conversationTitle" placeholder="Title…" class="w-full p-3 border border-gray-300 rounded-lg mb-3"/>
       <textarea id="conversationContent" placeholder="Paste chat…" class="w-full h-32 p-3 border border-gray-300 rounded-lg mb-4"></textarea>
@@ -42,44 +44,45 @@
   </div>
 
   <script>
+    // ---------- UI helper ----------
     function updateResults(message, isError = false) {
       const results = document.getElementById('results');
       results.innerHTML = `<pre class="${isError ? 'text-red-600' : 'text-green-600'} whitespace-pre-wrap text-sm">${message}</pre>`;
     }
 
-    // ✅ working ping
+    // ---------- Ping (working long path) ----------
     async function testPing() {
       try {
         updateResults('Testing ping…');
         const res = await fetch('/.netlify/functions/ping');
         const data = await res.json();
-        updateResults(`✅ Ping: ${JSON.stringify(data, null, 2)}`);
+        updateResults(`✅ Ping:\n${JSON.stringify(data, null, 2)}`);
       } catch (err) {
         updateResults(`❌ Ping failed: ${err.message}`, true);
       }
     }
 
-    // ✅ fixed memory
+    // ---------- Memory (POST JSON to long path) ----------
     async function testMemory() {
       try {
         updateResults('Testing memory…');
         const res = await fetch('/.netlify/functions/memory', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Volt-User': 'volt-web-test'
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             type: 'note',
             text: 'Test memory entry',
             meta: { origin: 'button' }
           })
         });
-        const data = await res.json();
-        if (data.ok) {
-          updateResults(`✅ Memory saved: ${JSON.stringify(data.entry, null, 2)}`);
+        const text = await res.text();
+        let data; try { data = JSON.parse(text); } catch { data = null; }
+        const ok = !!(data && (data.ok === true || data.status === 'success'));
+        if (ok) {
+          const entry = data.entry || data.data || data;
+          updateResults(`✅ Memory saved:\n${JSON.stringify(entry, null, 2)}`);
         } else {
-          updateResults(`❌ Memory error: ${data.error || 'Unknown'}`, true);
+          updateResults(`❌ Memory error:\n${text}`, true);
         }
       } catch (err) {
         updateResults(`❌ Memory failed: ${err.message}`, true);
@@ -93,14 +96,11 @@
 
         const res = await fetch('/.netlify/functions/memory', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Volt-User': 'volt-web-test'
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ type: 'context-summary', text: content })
         });
         const data = await res.json();
-        if (data.ok) updateResults('✅ Context saved!');
+        if (data.ok || data.status === 'success') updateResults('✅ Context saved!');
         else updateResults(`❌ Context error: ${data.error || 'Unknown'}`, true);
       } catch (err) {
         updateResults(`❌ Save context failed: ${err.message}`, true);
@@ -115,10 +115,7 @@
 
         const res = await fetch('/.netlify/functions/memory', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Volt-User': 'volt-web-test'
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             type: 'conversation',
             text: `Title: ${title}\n\n${content}`,
@@ -126,7 +123,7 @@
           })
         });
         const data = await res.json();
-        if (data.ok) {
+        if (data.ok || data.status === 'success') {
           updateResults('✅ Conversation saved!');
           document.getElementById('conversationTitle').value = '';
           document.getElementById('conversationContent').value = '';
