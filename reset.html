@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Reset PWA</title></head>
+<body style="font-family: system-ui; padding: 20px">
+  <h2>Resetting…</h2>
+  <pre id="log">Working…</pre>
+  <script>
+    (async () => {
+      const log = m => (document.getElementById('log').textContent += '\n' + m);
+      try {
+        if ('serviceWorker' in navigator) {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          for (const r of regs) { await r.unregister(); log('Unregistered SW'); }
+        }
+        if ('caches' in window) {
+          const keys = await caches.keys();
+          for (const k of keys) { await caches.delete(k); log('Deleted cache: ' + k); }
+        }
+        log('Done. Reloading…');
+        location.replace('/?nocache=' + Date.now());
+      } catch (e) {
+        log('Error: ' + e.message);
+      }
+    })();
+  </script>
+</body>
+</html>
