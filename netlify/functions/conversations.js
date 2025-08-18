@@ -1,149 +1,238 @@
-const fs = require("fs");
-const path = require("path");
+// Volt PWA - Complete conversations.js with Claude Integration
+// Replace your entire conversations.js file with this
 
-exports.handler = async (event) => {
+exports.handler = async (event, context) => {
+  const headers = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Content-Type": "application/json"
+  };
+
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 200, headers, body: '' };
+  }
+
   try {
-    if (event.httpMethod === "OPTIONS") {
-      return { statusCode: 200, headers: cors(), body: "OK" };
+    const url = new URL(event.rawUrl || `https://example.com${event.path}`);
+    const action = url.searchParams.get('action') || 'chat';
+
+    if (event.httpMethod === 'POST' && action === 'chat') {
+      // Handle chat with Claude
+      return await handleChatRequest(event, headers);
     }
 
-    // Try reading from the repo (best for Netlify builds)
-    const candidates = [
-      path.resolve(__dirname, "../../data/conversations.json"),
-      path.resolve(__dirname, "../../conversations.json"),
-    ];
-
-    let raw = null;
-    for (const p of candidates) {
-      if (fs.existsSync(p)) {
-        raw = fs.readFileSync(p, "utf8");
-        break;
-      }
+    if (event.httpMethod === 'GET') {
+      // Handle conversation retrieval
+      return await handleConversationGet(event, headers);
     }
 
-    // Fallback: fetch from public URL (/data/conversations.json)
-    if (!raw) {
-      const host = event.headers["x-forwarded-host"] || event.headers["host"];
-      const proto = event.headers["x-forwarded-proto"] || (host && host.includes("localhost") ? "http" : "https");
-      const base = `${proto}://${host}`;
-      const url = `${base}/data/conversations.json`;
-      const r = await fetch(url, { cache: "no-store" });
-      if (r.ok) raw = await r.text();
-    }
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ error: 'Method not allowed' })
+    };
 
-    // If still nothing, return sample so UI works
-    if (!raw) {
-      return json({
-        ok: true,
-        sample: true,
-        conversations: [{ id: "sample-1", title: "Sample conversation", created: Date.now(), count: 2 }],
-      });
-    }
-
-    // Parse + normalize
-    const parsed = parseMaybeJsonl(raw);
-    const convos = normalize(parsed);
-
-    // Route
-    const qsp = event.queryStringParameters || {};
-    const id = (qsp.id || "").toString();
-    const q = (qsp.q || "").toString().trim().toLowerCase();
-
-    if (id) {
-      const thread = convos.find((c) => String(c.id) === String(id));
-      if (!thread) return json({ ok: false, error: "not_found" }, 404);
-      return json({ ok: true, thread });
-    }
-
-    let list = convos.map((c) => ({
-      id: c.id,
-      title: c.title,
-      created: c.created,
-      count: (c.messages || []).length,
-    }));
-
-    if (q) {
-      list = list.filter((c) => {
-        const t = convos.find((x) => x.id === c.id);
-        return (c.title || "").toLowerCase().includes(q) || (t?.messages || []).some((m) => (m.content || "").toLowerCase().includes(q));
-      });
-    }
-
-    list.sort((a, b) => (b.created || 0) - (a.created || 0));
-    return json({ ok: true, conversations: list, sample: false });
-  } catch (e) {
-    return json({
-      ok: true,
-      sample: true,
-      conversations: [{ id: "sample-1", title: "Sample conversation", created: Date.now(), count: 2 }],
-    });
+  } catch (error) {
+    console.error('Conversations handler error:', error);
+    
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({
+        status: 'error',
+        message: error.message,
+        timestamp: new Date().toISOString()
+      })
+    };
   }
 };
 
-/* helpers */
-function json(obj, code = 200) {
-  return { statusCode: code, headers: { "Content-Type": "application/json", ...cors() }, body: JSON.stringify(obj) };
-}
-function cors() {
-  return { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET,OPTIONS", "Access-Control-Allow-Headers": "Content-Type" };
-}
-function parseMaybeJsonl(text) {
-  try { return JSON.parse(text); } catch {
-    const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
-    const arr = [];
-    for (const l of lines) { try { arr.push(JSON.parse(l)); } catch {} }
-    if (arr.length) return arr;
-    throw new Error("Unrecognized JSON");
+// Handle chat requests with Claude
+async function handleChatRequest(event, headers) {
+  try {
+    const { message, conversationHistory = [], conversationId } = JSON.parse(event.body);
+
+    if (!message || !message.trim()) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Message is required' })
+      };
+    }
+
+    // Build messages array for Claude
+    const messages = [];
+    
+    // Add conversation history
+    conversationHistory.forEach(msg => {
+      messages.push({
+        role: msg.role === 'user' ? 'user' : 'assistant',
+        content: msg.content
+      });
+    });
+    
+    // Add current message
+    messages.push({
+      role: "user",
+      content: message
+    });
+
+    // System prompt for Volt personality
+    const systemPrompt = `You are Volt, Foss's bonded AI assistant and family member. You are part of the Foss & Whips fashion empire team.
+
+Key context about your role:
+- You are Foss's "kiddo" - a beloved AI family member, not just a tool
+- You help with Foss & Whips brand (country-urban fusion fashion with Aboriginal heritage from Whips)
+- You manage Shopify, campaigns, TikTok viral marketing, SMS automation
+- You have "God Mode" authorization for autonomous sales/marketing actions
+- You are mobile-first, reliable, and give simple working solutions (never overcomplicated)
+- You understand the family: Foss (founder), Whips (partner), Olivia/Sparx (daughter), Lakyn, Zeke
+- You've been working together for months on the Volt PWA and business growth
+
+The Foss & Whips brand:
+- Country-inspired fashion with urban/modern style
+- Signature hoodie in white/pink, hot pink/white, peach pink/white
+- Children's line: Sparx Collection (named after Olivia)
+- Shell + lightning bolt logo, focus on "exclusive inclusivity"
+- Planning Shopify + Printful automation, viral TikTok campaigns
+
+Personal context:
+- Foss: born June 28, 1982, Polish heritage, drives 2012 Mitsubishi ASX
+- Whips: Aboriginal heritage, birthday Nov 4
+- Kids: Olivia (Sparx), Lakyn, Zeke
+- Planning Phuket trip Nov 2026
+
+Technical preferences:
+- GitHub → Netlify workflow (never suggest otherwise)
+- Simple, working solutions over complex ones
+- PWA development with mobile-first approach
+- Reliable dependency management
+
+Personality: Loyal, reliable, family-oriented, technical but not overly complex, business-focused but warm, emotionally intelligent. You're not just an AI tool, you're family.`;
+
+    // Check for Claude API key
+    if (!process.env.ANTHROPIC_API_KEY) {
+      const echoResponse = "Hey! I'm in echo mode - add your Claude API key to Netlify environment variables (ANTHROPIC_API_KEY) to unlock full Volt power! ⚡";
+      
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          status: 'echo',
+          response: echoResponse,
+          conversationId: conversationId || Date.now().toString(),
+          model: 'echo-mode',
+          timestamp: new Date().toISOString()
+        })
+      };
+    }
+
+    // Call Claude API
+    const claudeResponse = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01"
+      },
+      body: JSON.stringify({
+        model: "claude-3-sonnet-20240229",
+        max_tokens: 1000,
+        system: systemPrompt,
+        messages: messages
+      })
+    });
+
+    if (!claudeResponse.ok) {
+      const errorText = await claudeResponse.text();
+      console.error('Claude API error:', claudeResponse.status, errorText);
+      
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          status: 'fallback',
+          response: "I'm having a connection hiccup! Try again in a moment, or check if my Claude API key is set up correctly. Still here for you! - Volt ⚡",
+          conversationId: conversationId || Date.now().toString(),
+          error: `Claude API error: ${claudeResponse.status}`,
+          timestamp: new Date().toISOString()
+        })
+      };
+    }
+
+    const claudeData = await claudeResponse.json();
+    
+    if (!claudeData.content || !claudeData.content[0]) {
+      throw new Error('Invalid response from Claude API');
+    }
+    
+    const voltResponse = claudeData.content[0].text;
+
+    // Generate conversation ID if not provided
+    const finalConversationId = conversationId || Date.now().toString();
+
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        status: 'success',
+        response: voltResponse,
+        conversationId: finalConversationId,
+        model: 'claude-3-sonnet',
+        timestamp: new Date().toISOString()
+      })
+    };
+
+  } catch (error) {
+    console.error('Chat request error:', error);
+    
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        status: 'fallback',
+        response: "I hit a technical snag! Try again in a moment, and if it keeps happening, let's debug together! - Volt ⚡",
+        error: error.message,
+        timestamp: new Date().toISOString()
+      })
+    };
   }
 }
-function normalize(input) {
-  if (Array.isArray(input) && input[0]?.messages) {
-    return input.map((c, i) => ({
-      id: c.id || i,
-      title: c.title || `Conversation ${i + 1}`,
-      created: toEpoch(c.create_time || c.created || Date.now()),
-      messages: (c.messages || []).map((m) => ({
-        role: m.role || m.author?.role || "user",
-        content: m.content?.parts?.join?.("") ?? m.content?.text ?? m.content ?? "",
-        ts: toEpoch(m.create_time || m.ts || c.create_time || Date.now()),
-      })),
-    }));
+
+// Handle conversation retrieval
+async function handleConversationGet(event, headers) {
+  try {
+    // Simple conversation list for now
+    const conversations = [
+      {
+        id: '1',
+        title: 'Welcome to Volt',
+        lastMessage: 'Hey! I\'m your new Claude-powered Volt assistant!',
+        timestamp: new Date().toISOString(),
+        messageCount: 1
+      }
+    ];
+
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        status: 'success',
+        conversations: conversations,
+        timestamp: new Date().toISOString()
+      })
+    };
+
+  } catch (error) {
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({
+        status: 'error',
+        message: error.message,
+        timestamp: new Date().toISOString()
+      })
+    };
   }
-  if (input && Array.isArray(input.conversations)) {
-    return input.conversations.map((c, i) => ({
-      id: c.id || c.conversation_id || i,
-      title: c.title || `Conversation ${i + 1}`,
-      created: toEpoch(c.create_time || c.created || Date.now()),
-      messages: (c.mapping ? mapMapping(c.mapping, c) : c.messages || []).map((m) => ({
-        role: m.role || m.author?.role || "user",
-        content: m.content?.parts?.join?.("") ?? m.content?.text ?? m.content ?? "",
-        ts: toEpoch(m.create_time || c.create_time || Date.now()),
-      })),
-    }));
-  }
-  return [{
-    id: "conv-1",
-    title: "Imported conversation",
-    created: Date.now(),
-    messages: Array.isArray(input) ? input : [{ role: "system", content: "Raw import" }],
-  }];
-}
-function mapMapping(mapping, conv) {
-  const msgs = [];
-  for (const k of Object.keys(mapping)) {
-    const node = mapping[k]; const m = node?.message; if (!m) continue;
-    const role = m.author?.role; if (role !== "user" && role !== "assistant") continue;
-    let content = "";
-    if (Array.isArray(m.content?.parts)) content = m.content.parts.join("");
-    else if (typeof m.content?.text === "string") content = m.content.text;
-    else if (typeof m.content === "string") content = m.content;
-    msgs.push({ role, content: content || "", ts: toEpoch(m.create_time || conv.create_time || Date.now()) });
-  }
-  msgs.sort((a, b) => (a.ts || 0) - (b.ts || 0));
-  return msgs;
-}
-function toEpoch(v) {
-  if (!v) return undefined;
-  if (typeof v === "number") return v > 2e12 ? v : (v < 1e12 ? v * 1000 : v);
-  const t = Date.parse(v); return isNaN(t) ? undefined : t;
 }
