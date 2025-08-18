@@ -1,53 +1,50 @@
-// netlify/functions/ask.js
-// Works out of the box. If OPENAI_API_KEY is missing, it falls back to a local echo reply.
-
 exports.handler = async (event) => {
   try {
-    if (event.httpMethod !== 'POST') {
-      return { statusCode: 200, body: JSON.stringify({ ok: true, reply: "Ask endpoint alive ✅ (POST a JSON {message})" }) };
+    if (event.httpMethod === "OPTIONS") {
+      return { statusCode: 200, headers: cors(), body: "OK" };
+    }
+    if (event.httpMethod !== "POST") {
+      return json({ ok: false, error: "POST only" }, 405);
     }
 
-    let body = {};
-    try { body = JSON.parse(event.body || '{}'); } catch (_) {}
-    const message = (body.message || '').toString().trim();
-
-    if (!message) {
-      return { statusCode: 400, body: JSON.stringify({ ok: false, error: 'No message' }) };
-    }
-
+    const body = JSON.parse(event.body || "{}");
+    const messages = Array.isArray(body.messages) ? body.messages : [];
     const apiKey = process.env.OPENAI_API_KEY;
 
-    // Fallback that ALWAYS works without any setup.
-    if (!apiKey) {
-      const reply = `Volt (offline): you said → "${message}"`;
-      return { statusCode: 200, body: JSON.stringify({ ok: true, reply }) };
+    if (apiKey) {
+      // Online mode (optional)
+      const r = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            { role: "system", content: "You are Volt. Be concise, helpful, and friendly." },
+            ...messages.map(m => ({ role: m.role || "user", content: m.content || "" })),
+          ],
+          temperature: 0.8,
+        }),
+      });
+      const data = await r.json();
+      const reply = data?.choices?.[0]?.message?.content || "(no reply)";
+      return json({ ok: true, mode: "Mode: online (OpenAI)", reply });
     }
 
-    // Live mode with OpenAI (requires OPENAI_API_KEY in Netlify env vars)
-    const resp = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',       // pick a small/cheap model; change if you prefer
-        messages: [
-          { role: 'system', content: 'You are Volt, a concise, helpful assistant.' },
-          { role: 'user', content: message }
-        ]
-      })
-    });
+    // Offline echo (always works)
+    const lastUser = [...messages].reverse().find(m => (m.role || "") === "user")?.content || "";
+    return json({ ok: true, mode: "Mode: offline echo", reply: `Volt (offline): you said → "${lastUser}"` });
 
-    const data = await resp.json();
-    if (!resp.ok) {
-      return { statusCode: resp.status, body: JSON.stringify({ ok: false, error: data.error?.message || 'OpenAI error' }) };
-    }
-
-    const reply = data.choices?.[0]?.message?.content || 'No reply';
-    return { statusCode: 200, body: JSON.stringify({ ok: true, reply }) };
-
-  } catch (err) {
-    return { statusCode: 500, body: JSON.stringify({ ok: false, error: err.message }) };
+  } catch (e) {
+    return json({ ok: false, error: e.message }, 500);
   }
 };
+
+function json(obj, code = 200) {
+  return { statusCode: code, headers: { "Content-Type": "application/json", ...cors() }, body: JSON.stringify(obj) };
+}
+function cors() {
+  return { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "POST,OPTIONS", "Access-Control-Allow-Headers": "Content-Type" };
+}
