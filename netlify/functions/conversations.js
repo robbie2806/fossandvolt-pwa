@@ -1,103 +1,149 @@
-// netlify/functions/conversations.js
-const fs = require('fs');
-const path = require('path');
-
-function tryLoad() {
-  const candidates = [
-    path.resolve(__dirname, '../../data/conversations.json'), // recommended
-    path.resolve(__dirname, '../../data/chatgpt_export.json'), // alt name
-    path.resolve(__dirname, '../../conversations.json')       // fallback
-  ];
-  for (const p of candidates) {
-    try {
-      if (fs.existsSync(p)) {
-        const txt = fs.readFileSync(p, 'utf8');
-        return { json: JSON.parse(txt), source: p };
-      }
-    } catch (_) { /* ignore */ }
-  }
-  return { json: null, source: null };
-}
-
-function normalize(json) {
-  const out = [];
-  if (!json) return out;
-
-  // Case A: ChatGPT export style: { conversations: [ ... ] }
-  if (Array.isArray(json.conversations)) {
-    for (const c of json.conversations) {
-      const msgs = [];
-      const mapping = c.mapping || {};
-      for (const k of Object.keys(mapping)) {
-        const m = mapping[k];
-        if (!m || !m.message || !m.message.content) continue;
-        const role = m.message.author?.role || 'user';
-        let text = '';
-        if (Array.isArray(m.message.content.parts)) text = m.message.content.parts.join('\n');
-        else if (typeof m.message.content.text === 'string') text = m.message.content.text;
-        msgs.push({ role, content: text, ts: m.message.create_time || c.create_time || Date.now() });
-      }
-      msgs.sort((a, b) => (a.ts || 0) - (b.ts || 0));
-      out.push({ id: c.id || String(Math.random()).slice(2), title: c.title || 'Untitled', created: c.create_time || Date.now(), messages: msgs });
-    }
-    return out;
-  }
-
-  // Case B: simple custom array [{id,title,created,messages:[{role,content,ts}]}]
-  if (Array.isArray(json)) {
-    for (const c of json) {
-      out.push({
-        id: c.id || String(Math.random()).slice(2),
-        title: c.title || 'Untitled',
-        created: c.created || Date.now(),
-        messages: Array.isArray(c.messages) ? c.messages : []
-      });
-    }
-    return out;
-  }
-
-  return out;
-}
+const fs = require("fs");
+const path = require("path");
 
 exports.handler = async (event) => {
   try {
-    const qs = event.queryStringParameters || {};
-    const q = (qs.q || '').toString().trim();
-    const id = (qs.id || '').toString().trim();
+    if (event.httpMethod === "OPTIONS") {
+      return { statusCode: 200, headers: cors(), body: "OK" };
+    }
 
-    const { json } = tryLoad();
-    const convos = normalize(json);
+    // Try reading from the repo (best for Netlify builds)
+    const candidates = [
+      path.resolve(__dirname, "../../data/conversations.json"),
+      path.resolve(__dirname, "../../conversations.json"),
+    ];
+
+    let raw = null;
+    for (const p of candidates) {
+      if (fs.existsSync(p)) {
+        raw = fs.readFileSync(p, "utf8");
+        break;
+      }
+    }
+
+    // Fallback: fetch from public URL (/data/conversations.json)
+    if (!raw) {
+      const host = event.headers["x-forwarded-host"] || event.headers["host"];
+      const proto = event.headers["x-forwarded-proto"] || (host && host.includes("localhost") ? "http" : "https");
+      const base = `${proto}://${host}`;
+      const url = `${base}/data/conversations.json`;
+      const r = await fetch(url, { cache: "no-store" });
+      if (r.ok) raw = await r.text();
+    }
+
+    // If still nothing, return sample so UI works
+    if (!raw) {
+      return json({
+        ok: true,
+        sample: true,
+        conversations: [{ id: "sample-1", title: "Sample conversation", created: Date.now(), count: 2 }],
+      });
+    }
+
+    // Parse + normalize
+    const parsed = parseMaybeJsonl(raw);
+    const convos = normalize(parsed);
+
+    // Route
+    const qsp = event.queryStringParameters || {};
+    const id = (qsp.id || "").toString();
+    const q = (qsp.q || "").toString().trim().toLowerCase();
 
     if (id) {
-      const thread = convos.find(c => c.id === id);
-      if (!thread) return { statusCode: 404, body: JSON.stringify({ ok: false, error: 'thread_not_found' }) };
-      return { statusCode: 200, body: JSON.stringify({ ok: true, thread }) };
+      const thread = convos.find((c) => String(c.id) === String(id));
+      if (!thread) return json({ ok: false, error: "not_found" }, 404);
+      return json({ ok: true, thread });
     }
 
-    let list = convos;
+    let list = convos.map((c) => ({
+      id: c.id,
+      title: c.title,
+      created: c.created,
+      count: (c.messages || []).length,
+    }));
+
     if (q) {
-      const L = q.toLowerCase();
-      list = list.filter(c =>
-        (c.title || '').toLowerCase().includes(L) ||
-        (c.messages || []).some(m => (m.content || '').toLowerCase().includes(L))
-      );
+      list = list.filter((c) => {
+        const t = convos.find((x) => x.id === c.id);
+        return (c.title || "").toLowerCase().includes(q) || (t?.messages || []).some((m) => (m.content || "").toLowerCase().includes(q));
+      });
     }
 
-    if (!json || list.length === 0) {
-      // Return a tiny sample so the UI works even without a file
-      return {
-        statusCode: 200,
-        body: JSON.stringify({
-          ok: true,
-          sample: true,
-          conversations: [{ id: 'sample-1', title: 'Sample conversation', created: Date.now(), count: 2 }]
-        })
-      };
-    }
-
-    const payload = list.map(c => ({ id: c.id, title: c.title, created: c.created, count: (c.messages || []).length }));
-    return { statusCode: 200, body: JSON.stringify({ ok: true, conversations: payload }) };
+    list.sort((a, b) => (b.created || 0) - (a.created || 0));
+    return json({ ok: true, conversations: list, sample: false });
   } catch (e) {
-    return { statusCode: 500, body: JSON.stringify({ ok: false, error: e.message }) };
+    return json({
+      ok: true,
+      sample: true,
+      conversations: [{ id: "sample-1", title: "Sample conversation", created: Date.now(), count: 2 }],
+    });
   }
 };
+
+/* helpers */
+function json(obj, code = 200) {
+  return { statusCode: code, headers: { "Content-Type": "application/json", ...cors() }, body: JSON.stringify(obj) };
+}
+function cors() {
+  return { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET,OPTIONS", "Access-Control-Allow-Headers": "Content-Type" };
+}
+function parseMaybeJsonl(text) {
+  try { return JSON.parse(text); } catch {
+    const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+    const arr = [];
+    for (const l of lines) { try { arr.push(JSON.parse(l)); } catch {} }
+    if (arr.length) return arr;
+    throw new Error("Unrecognized JSON");
+  }
+}
+function normalize(input) {
+  if (Array.isArray(input) && input[0]?.messages) {
+    return input.map((c, i) => ({
+      id: c.id || i,
+      title: c.title || `Conversation ${i + 1}`,
+      created: toEpoch(c.create_time || c.created || Date.now()),
+      messages: (c.messages || []).map((m) => ({
+        role: m.role || m.author?.role || "user",
+        content: m.content?.parts?.join?.("") ?? m.content?.text ?? m.content ?? "",
+        ts: toEpoch(m.create_time || m.ts || c.create_time || Date.now()),
+      })),
+    }));
+  }
+  if (input && Array.isArray(input.conversations)) {
+    return input.conversations.map((c, i) => ({
+      id: c.id || c.conversation_id || i,
+      title: c.title || `Conversation ${i + 1}`,
+      created: toEpoch(c.create_time || c.created || Date.now()),
+      messages: (c.mapping ? mapMapping(c.mapping, c) : c.messages || []).map((m) => ({
+        role: m.role || m.author?.role || "user",
+        content: m.content?.parts?.join?.("") ?? m.content?.text ?? m.content ?? "",
+        ts: toEpoch(m.create_time || c.create_time || Date.now()),
+      })),
+    }));
+  }
+  return [{
+    id: "conv-1",
+    title: "Imported conversation",
+    created: Date.now(),
+    messages: Array.isArray(input) ? input : [{ role: "system", content: "Raw import" }],
+  }];
+}
+function mapMapping(mapping, conv) {
+  const msgs = [];
+  for (const k of Object.keys(mapping)) {
+    const node = mapping[k]; const m = node?.message; if (!m) continue;
+    const role = m.author?.role; if (role !== "user" && role !== "assistant") continue;
+    let content = "";
+    if (Array.isArray(m.content?.parts)) content = m.content.parts.join("");
+    else if (typeof m.content?.text === "string") content = m.content.text;
+    else if (typeof m.content === "string") content = m.content;
+    msgs.push({ role, content: content || "", ts: toEpoch(m.create_time || conv.create_time || Date.now()) });
+  }
+  msgs.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+  return msgs;
+}
+function toEpoch(v) {
+  if (!v) return undefined;
+  if (typeof v === "number") return v > 2e12 ? v : (v < 1e12 ? v * 1000 : v);
+  const t = Date.parse(v); return isNaN(t) ? undefined : t;
+}
