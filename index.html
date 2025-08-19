@@ -1,200 +1,263 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Volt</title>
+// Complete Volt PWA Frontend JavaScript
+// Replace your entire <script> section with this
 
-  <meta name="theme-color" content="#ff3ea5">
-  <link rel="manifest" href="/manifest.webmanifest"/>
+// Global state
+let conversationHistory = [];
+let isLoading = false;
 
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    :root{ --volt-pink:#ff3ea5; --volt-pink-2:#ff6bb5; --volt-pink-3:#ffa3d1; }
-    .volt-gradient{background:linear-gradient(135deg,var(--volt-pink),var(--volt-pink-2))}
-    .volt-card{background:#fff;border-radius:16px;box-shadow:0 10px 30px rgba(255,62,165,.12),0 2px 6px rgba(0,0,0,.05)}
-    .volt-input:focus{outline:none;box-shadow:0 0 0 3px rgba(255,62,165,.25)}
-    .bubble{border:1px solid #fce;border-radius:14px;padding:.6rem .8rem;background:#fff}
-  </style>
-</head>
-<body class="min-h-screen bg-pink-50/40">
-  <!-- Header -->
-  <div class="volt-gradient text-white">
-    <div class="max-w-4xl mx-auto px-6 py-6">
-      <h1 class="text-3xl font-extrabold">⚡ Volt</h1>
-      <p class="opacity-95">Live chat + God-mode memory in your PWA</p>
-    </div>
-  </div>
-
-  <div class="max-w-4xl mx-auto p-6 space-y-6">
-    <!-- Backend tests -->
-    <div class="volt-card p-6">
-      <h2 class="text-xl font-semibold text-gray-800 mb-3">Test Backend</h2>
-      <div class="flex gap-2 mb-3">
-        <button id="btnPing" class="px-4 py-2 rounded-full text-white bg-pink-600 hover:bg-pink-700">Test Ping</button>
-        <button id="btnMemory" class="px-4 py-2 rounded-full text-white bg-fuchsia-600 hover:bg-fuchsia-700">Test Memory</button>
-      </div>
-      <pre id="results" class="bg-pink-50/60 border border-pink-100 rounded-xl p-3 text-sm text-pink-800">Ready.</pre>
-    </div>
-
-    <!-- Live Chat -->
-    <div class="volt-card p-6">
-      <h2 class="text-xl font-semibold text-gray-800 mb-3">Live Chat with Volt</h2>
-      <div id="chatLog" class="h-72 overflow-y-auto border border-pink-100 rounded-xl p-3 bg-white mb-3 text-sm"></div>
-      <div class="flex gap-2">
-        <textarea id="chatInput" class="volt-input flex-1 p-3 border border-pink-200 rounded-xl" placeholder="Type a message…"></textarea>
-        <button id="btnSend" class="px-5 py-2 rounded-full text-white bg-pink-600 hover:bg-pink-700">Send</button>
-      </div>
-      <div id="modeNote" class="text-xs text-gray-500 mt-2">Mode: offline echo (works without keys). Add OPENAI_API_KEY later to go live.</div>
-    </div>
-
-    <!-- Archive -->
-    <div class="volt-card p-6">
-      <div class="flex items-center justify-between mb-3">
-        <h2 class="text-xl font-semibold text-gray-800">Conversation Archive</h2>
-        <div class="flex gap-2">
-          <button id="btnReload" class="px-3 py-1 rounded-full bg-pink-50 hover:bg-pink-100 text-pink-700 text-sm">Reload</button>
-          <button id="btnExport" class="px-3 py-1 rounded-full bg-pink-50 hover:bg-pink-100 text-pink-700 text-sm">Export</button>
-          <button id="btnImportStatic" class="px-3 py-1 rounded-full bg-pink-50 hover:bg-pink-100 text-pink-700 text-sm">Import /data</button>
-        </div>
-      </div>
-
-      <input id="search" placeholder="Search titles & messages…" class="volt-input w-full p-3 border border-pink-200 rounded-xl mb-3"/>
-
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div><ul id="list" class="space-y-2"></ul></div>
-        <div>
-          <div id="viewer" class="border border-pink-100 rounded-xl p-3 h-[420px] overflow-y-auto bg-white text-sm">
-            Select a conversation…
-          </div>
-        </div>
-      </div>
-
-      <div id="archiveNote" class="text-xs text-gray-500 mt-3"></div>
-    </div>
-  </div>
-
-  <script>
-    const $ = id => document.getElementById(id);
-    const uid = () => Math.random().toString(36).slice(2);
-
-    /* -------- Local Memory Store (God mode via localStorage) -------- */
-    const LS_KEY='volt.conversations.v1';
-    const Memory={
-      load(){ try{return JSON.parse(localStorage.getItem(LS_KEY))||{conversations:[]}}catch{return{conversations:[]}} },
-      save(db){ localStorage.setItem(LS_KEY, JSON.stringify(db)); },
-      ensureLive(db){ let c=db.conversations.find(x=>x.id==='live'); if(!c){ c={id:'live',title:'Volt chat',created:Date.now(),messages:[]}; db.conversations.unshift(c);} return c; },
-      list(db){ return db.conversations.map(c=>({id:c.id,title:c.title,created:c.created,count:c.messages.length})); },
-      find(db,id){ return db.conversations.find(c=>String(c.id)===String(id)); },
-      upsert(db,c){ const i=db.conversations.findIndex(x=>x.id===c.id); if(i>=0) db.conversations[i]=c; else db.conversations.unshift(c); },
-      mergeImported(db, imported){
-        if(!imported||!Array.isArray(imported.conversations)) return db;
-        const byId=Object.fromEntries(db.conversations.map(c=>[String(c.id),c]));
-        for(const c of imported.conversations){
-          const k=String(c.id||uid());
-          if(byId[k]) continue;
-          byId[k]={id:k,title:c.title||'Conversation',created:c.created||Date.now(),messages:c.messages||[]};
+// Send message to Volt
+async function sendToVolt(message) {
+    if (isLoading || !message || !message.trim()) {
+        console.log('Message empty or loading');
+        return;
+    }
+    
+    try {
+        isLoading = true;
+        updateUILoading(true);
+        
+        console.log('Sending message:', message);
+        
+        // Add user message to UI immediately
+        addMessageToUI('user', message);
+        
+        // Prepare the request data - this is the correct format
+        const requestData = {
+            message: message.trim(),
+            conversationHistory: conversationHistory || []
+        };
+        
+        console.log('Request data:', JSON.stringify(requestData));
+        
+        // Try ask.js endpoint first
+        let response;
+        try {
+            response = await fetch('/.netlify/functions/ask', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            });
+        } catch (askError) {
+            console.log('ask.js failed, trying conversations.js');
+            // Fallback to conversations.js
+            response = await fetch('/.netlify/functions/conversations?action=chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            });
         }
-        db.conversations=Object.values(byId).sort((a,b)=>(b.created||0)-(a.created||0));
-        return db;
-      }
-    };
-
-    /* -------- UI helpers -------- */
-    function show(msg, ok=true){
-      $('results').textContent=msg;
-      $('results').className=`bg-pink-50/60 border rounded-xl p-3 text-sm ${ok?'text-green-700 border-green-100':'text-rose-600 border-rose-200'}`;
+        
+        console.log('Response status:', response.status);
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Response error:', errorText);
+            throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+        
+        const data = await response.json();
+        console.log('Response data:', data);
+        
+        if (data.status === 'success' || data.status === 'echo' || data.status === 'fallback') {
+            // Add Volt's response to UI
+            addMessageToUI('volt', data.response);
+            
+            // Update conversation history
+            conversationHistory.push(
+                { role: 'user', content: message },
+                { role: 'assistant', content: data.response }
+            );
+            
+            // Save conversation to memory
+            await saveConversationToMemory(message, data.response);
+            
+        } else {
+            throw new Error(data.error || 'Unknown error from Volt');
+        }
+        
+    } catch (error) {
+        console.error('Volt chat error:', error);
+        addMessageToUI('system', `Connection error: ${error.message}. Check console for details.`);
+    } finally {
+        isLoading = false;
+        updateUILoading(false);
+        clearMessageInput();
     }
-    function addBubble(role,text){
-      const log=$('chatLog'); const name=role==='user'?'You':'Volt';
-      const color=role==='user'?'border-blue-200':'border-pink-200';
-      const safe=(text||'').replace(/[<>&]/g,s=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[s]));
-      log.insertAdjacentHTML('beforeend',`<div class="mb-2">
-        <div class="text-[11px] ${role==='user'?'text-blue-700':'text-pink-700'} font-semibold">${name}</div>
-        <div class="bubble ${color} whitespace-pre-wrap">${safe}</div>
-      </div>`);
-      log.scrollTop=log.scrollHeight;
+}
+
+// Add message to chat UI
+function addMessageToUI(sender, content) {
+    const chatContainer = document.getElementById('chat-container') || document.querySelector('.chat-messages') || document.querySelector('#messages');
+    
+    if (!chatContainer) {
+        console.error('Chat container not found');
+        return;
     }
-
-    /* -------- Backend tests -------- */
-    async function testPing(){ try{const r=await fetch('/.netlify/functions/ping');const t=await r.text();let d;try{d=JSON.parse(t)}catch{};show(`Ping:\n${JSON.stringify(d??{raw:t},null,2)}`,r.ok);}catch(e){show('Ping failed: '+e.message,false);} }
-    async function testMemory(){ try{const r=await fetch('/.netlify/functions/memory');const t=await r.text();let d;try{d=JSON.parse(t)}catch{};show(`Memory:\n${JSON.stringify(d??{raw:t},null,2)}`,r.ok);}catch(e){show('Memory failed: '+e.message,false);} }
-
-    /* -------- Live Chat (sends full history to backend; offline echo fallback) -------- */
-    async function sendChat(){
-      const input=$('chatInput'); const msg=input.value.trim(); if(!msg) return; input.value='';
-      const db=Memory.load(); const live=Memory.ensureLive(db);
-      live.messages.push({role:'user',content:msg,ts:Date.now()}); Memory.upsert(db,live); Memory.save(db);
-      addBubble('user',msg);
-
-      let reply=''; let modeNote='Mode: offline echo';
-      try{
-        const res=await fetch('/.netlify/functions/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:live.messages.slice(0,5000)})});
-        const raw=await res.text(); let data; try{data=JSON.parse(raw)}catch{};
-        if(res.ok && data?.ok){ reply=data.reply||'(empty)'; modeNote=data.mode||modeNote; } else { reply=`Error: HTTP ${res.status}\n${raw}`; }
-      }catch(e){ reply=`Volt (offline): you said → "${msg}"`; }
-      $('modeNote').textContent=modeNote;
-
-      live.messages.push({role:'assistant',content:reply,ts:Date.now()}); Memory.upsert(db,live); Memory.save(db);
-      addBubble('assistant',reply); renderList(db);
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${sender}-message`;
+    
+    if (sender === 'user') {
+        messageDiv.innerHTML = `
+            <div class="message-header" style="color: #666; font-size: 12px; margin-bottom: 4px;">You</div>
+            <div class="message-content" style="background: #e3f2fd; padding: 8px 12px; border-radius: 12px; display: inline-block; max-width: 80%;">${content}</div>
+        `;
+        messageDiv.style.textAlign = 'right';
+        messageDiv.style.marginBottom = '12px';
+    } else if (sender === 'volt') {
+        messageDiv.innerHTML = `
+            <div class="message-header" style="color: #e91e63; font-size: 12px; font-weight: bold; margin-bottom: 4px;">Volt</div>
+            <div class="message-content" style="background: #fce4ec; padding: 8px 12px; border-radius: 12px; display: inline-block; max-width: 80%;">${content}</div>
+        `;
+        messageDiv.style.textAlign = 'left';
+        messageDiv.style.marginBottom = '12px';
+    } else {
+        messageDiv.innerHTML = `
+            <div class="message-content" style="background: #fff3e0; padding: 6px 10px; border-radius: 8px; display: inline-block; font-size: 14px; color: #f57c00;">${content}</div>
+        `;
+        messageDiv.style.textAlign = 'center';
+        messageDiv.style.marginBottom = '8px';
     }
+    
+    chatContainer.appendChild(messageDiv);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+}
 
-    /* -------- Archive viewer -------- */
-    function renderList(db,q=''){
-      const ul=$('list'); ul.innerHTML='';
-      let list=Memory.list(db);
-      if(q){ const n=q.toLowerCase(); list=list.filter(c=>{const conv=Memory.find(db,c.id);return (c.title||'').toLowerCase().includes(n)||(conv?.messages||[]).some(m=>(m.content||'').toLowerCase().includes(n));});}
-      if(list.length===0){ ul.innerHTML='<li class="text-gray-500 text-sm">No conversations.</li>'; return; }
-      for(const c of list){
-        const li=document.createElement('li');
-        li.className='border border-pink-100 rounded-xl p-3 hover:bg-pink-50 cursor-pointer';
-        li.innerHTML=`<div class="font-semibold">${c.title||'Untitled'}</div><div class="text-xs text-gray-500">${c.count} messages · ${c.created?new Date(c.created).toLocaleString():''}</div>`;
-        li.onclick=()=>openThread(c.id);
-        ul.appendChild(li);
-      }
+// Update loading state
+function updateUILoading(loading) {
+    const sendButton = document.getElementById('send-button') || document.querySelector('button[type="submit"]') || document.querySelector('.send-btn');
+    const messageInput = document.getElementById('message-input') || document.querySelector('input[type="text"]') || document.querySelector('.message-input');
+    const statusIndicator = document.getElementById('status-indicator') || document.querySelector('.status');
+    
+    if (loading) {
+        if (sendButton) {
+            sendButton.disabled = true;
+            sendButton.textContent = '...';
+        }
+        if (messageInput) {
+            messageInput.disabled = true;
+        }
+        if (statusIndicator) {
+            statusIndicator.textContent = 'Mode: thinking... (Claude)';
+        }
+    } else {
+        if (sendButton) {
+            sendButton.disabled = false;
+            sendButton.textContent = 'Send';
+        }
+        if (messageInput) {
+            messageInput.disabled = false;
+        }
+        if (statusIndicator) {
+            statusIndicator.textContent = 'Mode: online (Claude)';
+        }
     }
-    function openThread(id){
-      const db=Memory.load(); const conv=Memory.find(db,id); const box=$('viewer'); if(!conv){ box.textContent='Not found.'; return; }
-      box.innerHTML=(conv.messages||[]).map(m=>`
-        <div class="mb-2">
-          <div class="text-[11px] ${m.role==='assistant'?'text-pink-700':'text-blue-700'} font-semibold">${m.role}</div>
-          <div class="bubble border-pink-200 whitespace-pre-wrap">${(m.content||'').replace(/[<>&]/g,s=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[s]))}</div>
-          <div class="text-[10px] text-gray-400 mt-1">${m.ts?new Date(m.ts).toLocaleString():''}</div>
-        </div>`).join('')||'<div class="text-gray-500">Empty.</div>';
-    }
+}
 
-    /* -------- Import / Export -------- */
-    async function importFromStatic(){
-      try{
-        const r=await fetch('/data/conversations.json',{cache:'no-store'});
-        if(!r.ok) throw new Error('File not found');
-        const imported=await r.json();
-        let db=Memory.load(); db=Memory.mergeImported(db,imported); Memory.save(db);
-        $('archiveNote').textContent='Imported from /data/conversations.json'; renderList(db);
-      }catch(e){ $('archiveNote').textContent='Import failed: '+e.message; }
+// Clear message input
+function clearMessageInput() {
+    const messageInput = document.getElementById('message-input') || document.querySelector('input[type="text"]') || document.querySelector('.message-input');
+    if (messageInput) {
+        messageInput.value = '';
     }
-    function exportAll(){
-      const db=Memory.load(); const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});
-      const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='conversations.json'; a.click(); URL.revokeObjectURL(url);
+}
+
+// Save conversation to memory system
+async function saveConversationToMemory(userMessage, voltResponse) {
+    try {
+        const conversationText = `User: ${userMessage}\nVolt: ${voltResponse}`;
+        const timestamp = new Date().toLocaleString();
+        
+        await fetch('/.netlify/functions/memory', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                type: 'conversation',
+                title: `Chat - ${timestamp}`,
+                content: conversationText,
+                category: 'live-chat',
+                importance: 'medium',
+                tags: ['volt-chat', 'claude']
+            })
+        });
+    } catch (error) {
+        console.error('Failed to save conversation to memory:', error);
     }
+}
 
-    // Wire
-    $('btnPing').onclick=testPing;
-    $('btnMemory').onclick=testMemory;
-    $('btnSend').onclick=sendChat;
-    $('chatInput').addEventListener('keydown',e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendChat(); }});
-    $('btnReload').onclick=()=>renderList(Memory.load(),$('search').value);
-    $('search').oninput=e=>renderList(Memory.load(),e.target.value);
-    $('btnImportStatic').onclick=importFromStatic;
-    $('btnExport').onclick=exportAll;
+// Handle send button click
+function handleSendMessage() {
+    const messageInput = document.getElementById('message-input') || document.querySelector('input[type="text"]') || document.querySelector('.message-input');
+    if (messageInput) {
+        const message = messageInput.value.trim();
+        if (message) {
+            sendToVolt(message);
+        }
+    }
+}
 
-    // Boot
-    (function(){
-      const db=Memory.load(); Memory.ensureLive(db); Memory.save(db);
-      renderList(db);
-      $('chatLog').innerHTML='<div class="text-gray-500">Say hi 👋 — works even without an API key (echo mode).</div>';
-      show('Page loaded. Ready to test.', true);
-    })();
-  </script>
-</body>
-</html>
+// Setup event listeners
+function setupEventListeners() {
+    // Find send button
+    const sendButton = document.getElementById('send-button') || document.querySelector('button[type="submit"]') || document.querySelector('.send-btn');
+    if (sendButton) {
+        sendButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            handleSendMessage();
+        });
+    }
+    
+    // Find message input
+    const messageInput = document.getElementById('message-input') || document.querySelector('input[type="text"]') || document.querySelector('.message-input');
+    if (messageInput) {
+        messageInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSendMessage();
+            }
+        });
+    }
+    
+    // Find and setup form
+    const messageForm = document.getElementById('message-form') || document.querySelector('form');
+    if (messageForm) {
+        messageForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            handleSendMessage();
+        });
+    }
+}
+
+// Initialize when page loads
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('Volt PWA initializing...');
+    
+    setupEventListeners();
+    
+    // Update status to show Claude
+    const statusIndicator = document.getElementById('status-indicator') || document.querySelector('.status');
+    if (statusIndicator) {
+        statusIndicator.textContent = 'Mode: online (Claude)';
+    }
+    
+    // Add welcome message from Volt
+    setTimeout(() => {
+        addMessageToUI('volt', "Hey! I'm your new Claude-powered Volt assistant! I've replaced that unreliable ChatGPT. Ready to help with Foss & Whips and whatever you need! ⚡");
+    }, 1000);
+    
+    console.log('Volt PWA initialized successfully');
+});
+
+// Debug function - call this in console to test
+function debugVolt() {
+    console.log('Volt Debug Info:');
+    console.log('Conversation history:', conversationHistory);
+    console.log('Is loading:', isLoading);
+    console.log('Send button:', document.getElementById('send-button'));
+    console.log('Message input:', document.getElementById('message-input'));
+    console.log('Chat container:', document.getElementById('chat-container'));
+}
