@@ -1,263 +1,188 @@
-// Complete Volt PWA Frontend JavaScript
-// Replace your entire <script> section with this
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Volt PWA</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background: linear-gradient(45deg, #ff6b9d, #a855f7);
+            color: white;
+        }
+        .container { 
+            max-width: 600px; 
+            margin: 0 auto; 
+            background: rgba(255,255,255,0.1);
+            padding: 20px;
+            border-radius: 10px;
+        }
+        button { 
+            background: #ff6b9d; 
+            color: white; 
+            border: none; 
+            padding: 10px 20px; 
+            margin: 5px; 
+            border-radius: 5px; 
+            cursor: pointer;
+        }
+        input, textarea { 
+            width: 100%; 
+            padding: 10px; 
+            margin: 5px 0; 
+            border: none; 
+            border-radius: 5px;
+        }
+        #result { 
+            background: rgba(255,255,255,0.2); 
+            padding: 10px; 
+            margin: 10px 0; 
+            border-radius: 5px; 
+            min-height: 50px;
+        }
+        #chat { 
+            background: rgba(255,255,255,0.1); 
+            padding: 15px; 
+            margin: 10px 0; 
+            border-radius: 5px; 
+            min-height: 200px; 
+            max-height: 300px; 
+            overflow-y: auto;
+        }
+        .message { 
+            margin: 10px 0; 
+            padding: 8px; 
+            border-radius: 5px;
+        }
+        .user { 
+            background: rgba(33, 150, 243, 0.3); 
+            text-align: right;
+        }
+        .volt { 
+            background: rgba(233, 30, 99, 0.3); 
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚡ Volt PWA - Claude Powered</h1>
+        <p>Status: <span id="status">Ready</span></p>
+        
+        <h2>Test Backend</h2>
+        <button onclick="testPing()">Test Ping</button>
+        <button onclick="testMemory()">Test Memory</button>
+        <div id="result">Click buttons to test...</div>
+        
+        <h2>Chat with Volt</h2>
+        <div id="chat">
+            <div class="message volt">Volt: Hey! I'm ready to chat! ⚡</div>
+        </div>
+        <input type="text" id="messageInput" placeholder="Type your message..." onkeypress="handleEnter(event)">
+        <button onclick="sendMessage()">Send</button>
+        
+        <h2>Save to Memory</h2>
+        <textarea id="memoryInput" placeholder="Save important context..."></textarea>
+        <button onclick="saveMemory()">Save to Memory</button>
+    </div>
 
-// Global state
-let conversationHistory = [];
-let isLoading = false;
-
-// Send message to Volt
-async function sendToVolt(message) {
-    if (isLoading || !message || !message.trim()) {
-        console.log('Message empty or loading');
-        return;
-    }
-    
-    try {
-        isLoading = true;
-        updateUILoading(true);
-        
-        console.log('Sending message:', message);
-        
-        // Add user message to UI immediately
-        addMessageToUI('user', message);
-        
-        // Prepare the request data - this is the correct format
-        const requestData = {
-            message: message.trim(),
-            conversationHistory: conversationHistory || []
-        };
-        
-        console.log('Request data:', JSON.stringify(requestData));
-        
-        // Try ask.js endpoint first
-        let response;
-        try {
-            response = await fetch('/.netlify/functions/ask', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(requestData)
-            });
-        } catch (askError) {
-            console.log('ask.js failed, trying conversations.js');
-            // Fallback to conversations.js
-            response = await fetch('/.netlify/functions/conversations?action=chat', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(requestData)
-            });
+    <script>
+        // Simple functions that work
+        function updateResult(text) {
+            document.getElementById('result').innerHTML = text;
         }
         
-        console.log('Response status:', response.status);
-        
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Response error:', errorText);
-            throw new Error(`HTTP ${response.status}: ${errorText}`);
+        function addChatMessage(sender, message) {
+            const chat = document.getElementById('chat');
+            const div = document.createElement('div');
+            div.className = 'message ' + sender;
+            div.innerHTML = sender === 'user' ? 'You: ' + message : 'Volt: ' + message;
+            chat.appendChild(div);
+            chat.scrollTop = chat.scrollHeight;
         }
         
-        const data = await response.json();
-        console.log('Response data:', data);
-        
-        if (data.status === 'success' || data.status === 'echo' || data.status === 'fallback') {
-            // Add Volt's response to UI
-            addMessageToUI('volt', data.response);
-            
-            // Update conversation history
-            conversationHistory.push(
-                { role: 'user', content: message },
-                { role: 'assistant', content: data.response }
-            );
-            
-            // Save conversation to memory
-            await saveConversationToMemory(message, data.response);
-            
-        } else {
-            throw new Error(data.error || 'Unknown error from Volt');
-        }
-        
-    } catch (error) {
-        console.error('Volt chat error:', error);
-        addMessageToUI('system', `Connection error: ${error.message}. Check console for details.`);
-    } finally {
-        isLoading = false;
-        updateUILoading(false);
-        clearMessageInput();
-    }
-}
-
-// Add message to chat UI
-function addMessageToUI(sender, content) {
-    const chatContainer = document.getElementById('chat-container') || document.querySelector('.chat-messages') || document.querySelector('#messages');
-    
-    if (!chatContainer) {
-        console.error('Chat container not found');
-        return;
-    }
-    
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `message ${sender}-message`;
-    
-    if (sender === 'user') {
-        messageDiv.innerHTML = `
-            <div class="message-header" style="color: #666; font-size: 12px; margin-bottom: 4px;">You</div>
-            <div class="message-content" style="background: #e3f2fd; padding: 8px 12px; border-radius: 12px; display: inline-block; max-width: 80%;">${content}</div>
-        `;
-        messageDiv.style.textAlign = 'right';
-        messageDiv.style.marginBottom = '12px';
-    } else if (sender === 'volt') {
-        messageDiv.innerHTML = `
-            <div class="message-header" style="color: #e91e63; font-size: 12px; font-weight: bold; margin-bottom: 4px;">Volt</div>
-            <div class="message-content" style="background: #fce4ec; padding: 8px 12px; border-radius: 12px; display: inline-block; max-width: 80%;">${content}</div>
-        `;
-        messageDiv.style.textAlign = 'left';
-        messageDiv.style.marginBottom = '12px';
-    } else {
-        messageDiv.innerHTML = `
-            <div class="message-content" style="background: #fff3e0; padding: 6px 10px; border-radius: 8px; display: inline-block; font-size: 14px; color: #f57c00;">${content}</div>
-        `;
-        messageDiv.style.textAlign = 'center';
-        messageDiv.style.marginBottom = '8px';
-    }
-    
-    chatContainer.appendChild(messageDiv);
-    chatContainer.scrollTop = chatContainer.scrollHeight;
-}
-
-// Update loading state
-function updateUILoading(loading) {
-    const sendButton = document.getElementById('send-button') || document.querySelector('button[type="submit"]') || document.querySelector('.send-btn');
-    const messageInput = document.getElementById('message-input') || document.querySelector('input[type="text"]') || document.querySelector('.message-input');
-    const statusIndicator = document.getElementById('status-indicator') || document.querySelector('.status');
-    
-    if (loading) {
-        if (sendButton) {
-            sendButton.disabled = true;
-            sendButton.textContent = '...';
-        }
-        if (messageInput) {
-            messageInput.disabled = true;
-        }
-        if (statusIndicator) {
-            statusIndicator.textContent = 'Mode: thinking... (Claude)';
-        }
-    } else {
-        if (sendButton) {
-            sendButton.disabled = false;
-            sendButton.textContent = 'Send';
-        }
-        if (messageInput) {
-            messageInput.disabled = false;
-        }
-        if (statusIndicator) {
-            statusIndicator.textContent = 'Mode: online (Claude)';
-        }
-    }
-}
-
-// Clear message input
-function clearMessageInput() {
-    const messageInput = document.getElementById('message-input') || document.querySelector('input[type="text"]') || document.querySelector('.message-input');
-    if (messageInput) {
-        messageInput.value = '';
-    }
-}
-
-// Save conversation to memory system
-async function saveConversationToMemory(userMessage, voltResponse) {
-    try {
-        const conversationText = `User: ${userMessage}\nVolt: ${voltResponse}`;
-        const timestamp = new Date().toLocaleString();
-        
-        await fetch('/.netlify/functions/memory', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                type: 'conversation',
-                title: `Chat - ${timestamp}`,
-                content: conversationText,
-                category: 'live-chat',
-                importance: 'medium',
-                tags: ['volt-chat', 'claude']
-            })
-        });
-    } catch (error) {
-        console.error('Failed to save conversation to memory:', error);
-    }
-}
-
-// Handle send button click
-function handleSendMessage() {
-    const messageInput = document.getElementById('message-input') || document.querySelector('input[type="text"]') || document.querySelector('.message-input');
-    if (messageInput) {
-        const message = messageInput.value.trim();
-        if (message) {
-            sendToVolt(message);
-        }
-    }
-}
-
-// Setup event listeners
-function setupEventListeners() {
-    // Find send button
-    const sendButton = document.getElementById('send-button') || document.querySelector('button[type="submit"]') || document.querySelector('.send-btn');
-    if (sendButton) {
-        sendButton.addEventListener('click', (e) => {
-            e.preventDefault();
-            handleSendMessage();
-        });
-    }
-    
-    // Find message input
-    const messageInput = document.getElementById('message-input') || document.querySelector('input[type="text"]') || document.querySelector('.message-input');
-    if (messageInput) {
-        messageInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSendMessage();
+        async function testPing() {
+            updateResult('Testing ping...');
+            try {
+                const response = await fetch('/.netlify/functions/ping');
+                const data = await response.json();
+                updateResult('✅ Ping works! ' + JSON.stringify(data));
+            } catch (error) {
+                updateResult('❌ Ping failed: ' + error.message);
             }
-        });
-    }
-    
-    // Find and setup form
-    const messageForm = document.getElementById('message-form') || document.querySelector('form');
-    if (messageForm) {
-        messageForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            handleSendMessage();
-        });
-    }
-}
-
-// Initialize when page loads
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('Volt PWA initializing...');
-    
-    setupEventListeners();
-    
-    // Update status to show Claude
-    const statusIndicator = document.getElementById('status-indicator') || document.querySelector('.status');
-    if (statusIndicator) {
-        statusIndicator.textContent = 'Mode: online (Claude)';
-    }
-    
-    // Add welcome message from Volt
-    setTimeout(() => {
-        addMessageToUI('volt', "Hey! I'm your new Claude-powered Volt assistant! I've replaced that unreliable ChatGPT. Ready to help with Foss & Whips and whatever you need! ⚡");
-    }, 1000);
-    
-    console.log('Volt PWA initialized successfully');
-});
-
-// Debug function - call this in console to test
-function debugVolt() {
-    console.log('Volt Debug Info:');
-    console.log('Conversation history:', conversationHistory);
-    console.log('Is loading:', isLoading);
-    console.log('Send button:', document.getElementById('send-button'));
-    console.log('Message input:', document.getElementById('message-input'));
-    console.log('Chat container:', document.getElementById('chat-container'));
-}
+        }
+        
+        async function testMemory() {
+            updateResult('Testing memory...');
+            try {
+                const response = await fetch('/.netlify/functions/memory');
+                const data = await response.json();
+                updateResult('✅ Memory works! ' + JSON.stringify(data));
+            } catch (error) {
+                updateResult('❌ Memory failed: ' + error.message);
+            }
+        }
+        
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            if (!message) return;
+            
+            addChatMessage('user', message);
+            input.value = '';
+            document.getElementById('status').textContent = 'Thinking...';
+            
+            try {
+                const response = await fetch('/.netlify/functions/ask', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: message, conversationHistory: [] })
+                });
+                
+                const data = await response.json();
+                if (data.response) {
+                    addChatMessage('volt', data.response);
+                } else {
+                    addChatMessage('volt', 'Error: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                addChatMessage('volt', 'Connection error: ' + error.message);
+            }
+            
+            document.getElementById('status').textContent = 'Ready';
+        }
+        
+        async function saveMemory() {
+            const input = document.getElementById('memoryInput');
+            const content = input.value.trim();
+            if (!content) return;
+            
+            try {
+                const response = await fetch('/.netlify/functions/memory', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type: 'context-summary', content: content })
+                });
+                
+                const data = await response.json();
+                if (data.status === 'success') {
+                    updateResult('✅ Saved to memory!');
+                    input.value = '';
+                } else {
+                    updateResult('❌ Save failed: ' + data.message);
+                }
+            } catch (error) {
+                updateResult('❌ Save error: ' + error.message);
+            }
+        }
+        
+        function handleEnter(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+        
+        console.log('Volt PWA loaded successfully!');
+    </script>
+</body>
+</html>
