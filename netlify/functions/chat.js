@@ -26,6 +26,10 @@ exports.handler = async (event, context) => {
   try {
     const { message } = JSON.parse(event.body);
     
+    if (!process.env.ANTHROPIC_API_KEY) {
+      throw new Error('ANTHROPIC_API_KEY not found');
+    }
+    
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -34,14 +38,16 @@ exports.handler = async (event, context) => {
         "anthropic-version": "2023-06-01"
       },
       body: JSON.stringify({
-        model: "claude-3-sonnet-20240229",
+        model: "claude-3-5-sonnet-20241022",
         max_tokens: 1000,
         messages: [{ role: "user", content: message }]
       })
     });
 
     if (!response.ok) {
-      throw new Error(`API request failed: ${response.status}`);
+      const errorData = await response.text();
+      console.error('API Error:', response.status, errorData);
+      throw new Error(`API request failed: ${response.status} - ${errorData}`);
     }
 
     const data = await response.json();
