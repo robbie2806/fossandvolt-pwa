@@ -62,6 +62,11 @@
             background: rgba(233, 30, 99, 0.3); 
             text-align: left;
         }
+        .loading { 
+            background: rgba(255, 193, 7, 0.3); 
+            text-align: left;
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
@@ -92,13 +97,23 @@
             document.getElementById('result').innerHTML = text;
         }
         
-        function addChatMessage(sender, message) {
+        function addChatMessage(sender, message, isLoading = false) {
             const chat = document.getElementById('chat');
             const div = document.createElement('div');
-            div.className = 'message ' + sender;
+            div.className = 'message ' + sender + (isLoading ? ' loading' : '');
             div.innerHTML = sender === 'user' ? 'You: ' + message : 'Volt: ' + message;
+            if (isLoading) {
+                div.id = 'loading-message';
+            }
             chat.appendChild(div);
             chat.scrollTop = chat.scrollHeight;
+        }
+        
+        function removeLoadingMessage() {
+            const loadingMessage = document.getElementById('loading-message');
+            if (loadingMessage) {
+                loadingMessage.remove();
+            }
         }
         
         async function testPing() {
@@ -128,25 +143,41 @@
             const message = input.value.trim();
             if (!message) return;
             
+            // Add user message to chat
             addChatMessage('user', message);
             input.value = '';
+            
+            // Show loading state
             document.getElementById('status').textContent = 'Thinking...';
+            addChatMessage('volt', 'Thinking...', true);
             
             try {
-                const response = await fetch('/.netlify/functions/ask', {
+                // Call the Claude API via Netlify function
+                const response = await fetch('/.netlify/functions/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: message, conversationHistory: [] })
+                    body: JSON.stringify({ message: message })
                 });
                 
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
                 const data = await response.json();
-                if (data.response) {
+                
+                // Remove loading message
+                removeLoadingMessage();
+                
+                if (data.success) {
                     addChatMessage('volt', data.response);
                 } else {
-                    addChatMessage('volt', 'Error: ' + (data.error || 'Unknown error'));
+                    addChatMessage('volt', 'Sorry, I encountered an error: ' + (data.error || 'Unknown error'));
                 }
             } catch (error) {
-                addChatMessage('volt', 'Connection error: ' + error.message);
+                // Remove loading message and show error
+                removeLoadingMessage();
+                addChatMessage('volt', 'Hey! I\'m having a connection hiccup right now. Try again in a moment, or check if my Claude API key is set up correctly in Netlify. I\'m still here for you! - Volt ⚡');
+                console.error('Error sending message:', error);
             }
             
             document.getElementById('status').textContent = 'Ready';
