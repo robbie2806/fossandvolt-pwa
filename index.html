@@ -1,219 +1,88 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Volt PWA</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        body { 
-            font-family: Arial, sans-serif; 
-            margin: 20px; 
-            background: linear-gradient(45deg, #ff6b9d, #a855f7);
-            color: white;
-        }
-        .container { 
-            max-width: 600px; 
-            margin: 0 auto; 
-            background: rgba(255,255,255,0.1);
-            padding: 20px;
-            border-radius: 10px;
-        }
-        button { 
-            background: #ff6b9d; 
-            color: white; 
-            border: none; 
-            padding: 10px 20px; 
-            margin: 5px; 
-            border-radius: 5px; 
-            cursor: pointer;
-        }
-        input, textarea { 
-            width: 100%; 
-            padding: 10px; 
-            margin: 5px 0; 
-            border: none; 
-            border-radius: 5px;
-        }
-        #result { 
-            background: rgba(255,255,255,0.2); 
-            padding: 10px; 
-            margin: 10px 0; 
-            border-radius: 5px; 
-            min-height: 50px;
-        }
-        #chat { 
-            background: rgba(255,255,255,0.1); 
-            padding: 15px; 
-            margin: 10px 0; 
-            border-radius: 5px; 
-            min-height: 200px; 
-            max-height: 300px; 
-            overflow-y: auto;
-        }
-        .message { 
-            margin: 10px 0; 
-            padding: 8px; 
-            border-radius: 5px;
-        }
-        .user { 
-            background: rgba(33, 150, 243, 0.3); 
-            text-align: right;
-        }
-        .volt { 
-            background: rgba(233, 30, 99, 0.3); 
-            text-align: left;
-        }
-        .loading { 
-            background: rgba(255, 193, 7, 0.3); 
-            text-align: left;
-            font-style: italic;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>⚡ Volt PWA - Claude Powered</h1>
-        <p>Status: <span id="status">Ready</span></p>
-        
-        <h2>Test Backend</h2>
-        <button onclick="testPing()">Test Ping</button>
-        <button onclick="testMemory()">Test Memory</button>
-        <div id="result">Click buttons to test...</div>
-        
-        <h2>Chat with Volt</h2>
-        <div id="chat">
-            <div class="message volt">Volt: Hey! I'm ready to chat! ⚡</div>
-        </div>
-        <input type="text" id="messageInput" placeholder="Type your message..." onkeypress="handleEnter(event)">
-        <button onclick="sendMessage()">Send</button>
-        
-        <h2>Save to Memory</h2>
-        <textarea id="memoryInput" placeholder="Save important context..."></textarea>
-        <button onclick="saveMemory()">Save to Memory</button>
-    </div>
+/**
+ * POST /.netlify/functions/chat-claude
+ * Body: { messages: [{role:"user"|"assistant"|"system", content:"..."}], system?: string, max_tokens?: number }
+ * Env: ANTHROPIC_API_KEY, ANTHROPIC_MODEL (optional, defaults to claude-3-5-sonnet-latest)
+ */
+export async function handler(event) {
+  if (event.httpMethod === "OPTIONS") {
+    return {
+      statusCode: 204,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+      },
+    };
+  }
+  if (event.httpMethod !== "POST") {
+    return { statusCode: 405, body: "Method Not Allowed" };
+  }
 
-    <script>
-        // Simple functions that work
-        function updateResult(text) {
-            document.getElementById('result').innerHTML = text;
-        }
-        
-        function addChatMessage(sender, message, isLoading = false) {
-            const chat = document.getElementById('chat');
-            const div = document.createElement('div');
-            div.className = 'message ' + sender + (isLoading ? ' loading' : '');
-            div.innerHTML = sender === 'user' ? 'You: ' + message : 'Volt: ' + message;
-            if (isLoading) {
-                div.id = 'loading-message';
-            }
-            chat.appendChild(div);
-            chat.scrollTop = chat.scrollHeight;
-        }
-        
-        function removeLoadingMessage() {
-            const loadingMessage = document.getElementById('loading-message');
-            if (loadingMessage) {
-                loadingMessage.remove();
-            }
-        }
-        
-        async function testPing() {
-            updateResult('Testing ping...');
-            try {
-                const response = await fetch('/.netlify/functions/ping');
-                const data = await response.json();
-                updateResult('✅ Ping works! ' + JSON.stringify(data));
-            } catch (error) {
-                updateResult('❌ Ping failed: ' + error.message);
-            }
-        }
-        
-        async function testMemory() {
-            updateResult('Testing memory...');
-            try {
-                const response = await fetch('/.netlify/functions/memory');
-                const data = await response.json();
-                updateResult('✅ Memory works! ' + JSON.stringify(data));
-            } catch (error) {
-                updateResult('❌ Memory failed: ' + error.message);
-            }
-        }
-        
-        async function sendMessage() {
-            const input = document.getElementById('messageInput');
-            const message = input.value.trim();
-            if (!message) return;
-            
-            // Add user message to chat
-            addChatMessage('user', message);
-            input.value = '';
-            
-            // Show loading state
-            document.getElementById('status').textContent = 'Thinking...';
-            addChatMessage('volt', 'Thinking...', true);
-            
-            try {
-                // Call the Claude API via Netlify function
-                const response = await fetch('/.netlify/functions/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: message })
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                const data = await response.json();
-                
-                // Remove loading message
-                removeLoadingMessage();
-                
-                if (data.success) {
-                    addChatMessage('volt', data.response);
-                } else {
-                    addChatMessage('volt', 'Sorry, I encountered an error: ' + (data.error || 'Unknown error'));
-                }
-            } catch (error) {
-                // Remove loading message and show error
-                removeLoadingMessage();
-                addChatMessage('volt', 'Hey! I\'m having a connection hiccup right now. Try again in a moment, or check if my Claude API key is set up correctly in Netlify. I\'m still here for you! - Volt ⚡');
-                console.error('Error sending message:', error);
-            }
-            
-            document.getElementById('status').textContent = 'Ready';
-        }
-        
-        async function saveMemory() {
-            const input = document.getElementById('memoryInput');
-            const content = input.value.trim();
-            if (!content) return;
-            
-            try {
-                const response = await fetch('/.netlify/functions/memory', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ type: 'context-summary', content: content })
-                });
-                
-                const data = await response.json();
-                if (data.status === 'success') {
-                    updateResult('✅ Saved to memory!');
-                    input.value = '';
-                } else {
-                    updateResult('❌ Save failed: ' + data.message);
-                }
-            } catch (error) {
-                updateResult('❌ Save error: ' + error.message);
-            }
-        }
-        
-        function handleEnter(event) {
-            if (event.key === 'Enter') {
-                sendMessage();
-            }
-        }
-        
-        console.log('Volt PWA loaded successfully!');
-    </script>
-</body>
-</html>
+  const headers = {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+  };
+
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) {
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        ok: false,
+        error: "Missing ANTHROPIC_API_KEY in Netlify environment.",
+      }),
+    };
+  }
+
+  let payload = {};
+  try {
+    payload = JSON.parse(event.body || "{}");
+  } catch {}
+
+  const model = process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-latest";
+  const max_tokens = Math.min(1024, Math.max(128, payload.max_tokens || 512));
+  const system = payload.system || "You are Volt, a concise, helpful assistant.";
+
+  const body = {
+    model,
+    max_tokens,
+    system,
+    messages: payload.messages || [],
+  };
+
+  try {
+    const resp = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({ ok: false, error: data.error || data }),
+      };
+    }
+
+    const text =
+      (data.content && data.content[0] && data.content[0].text) ||
+      JSON.stringify(data);
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({ ok: true, text, raw: data }),
+    };
+  } catch (err) {
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({ ok: false, error: String(err) }),
+    };
+  }
+}
