@@ -1,18 +1,14 @@
+const https = require('https');
+
 exports.handler = async (event, context) => {
-  // Enable CORS
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
   };
 
-  // Handle preflight requests
   if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers,
-      body: '',
-    };
+    return { statusCode: 200, headers, body: '' };
   }
 
   if (event.httpMethod !== 'POST') {
@@ -26,42 +22,53 @@ exports.handler = async (event, context) => {
   try {
     const { message } = JSON.parse(event.body);
     
-    if (!process.env.ANTHROPIC_API_KEY) {
-      throw new Error('ANTHROPIC_API_KEY not found');
-    }
-    
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01"
-      },
-      body: JSON.stringify({
-        model: "claude-3-sonnet-20240229",
-        max_tokens: 1000,
-        messages: [{ role: "user", content: message }]
-      })
+    const requestBody = JSON.stringify({
+      model: "claude-3-haiku-20240307",
+      max_tokens: 1000,
+      messages: [{ role: "user", content: message }]
     });
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error('API Error:', response.status, errorData);
-      throw new Error(`API request failed: ${response.status} - ${errorData}`);
-    }
+    const options = {
+      hostname: 'api.anthropic.com',
+      port: 443,
+      path: '/v1/messages',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'Content-Length': Buffer.byteLength(requestBody)
+      }
+    };
 
-    const data = await response.json();
-    
+    const apiResponse = await new Promise((resolve, reject) => {
+      const req = https.request(options, (res) => {
+        let data = '';
+        res.on('data', (chunk) => data += chunk);
+        res.on('end', () => {
+          if (res.statusCode === 200) {
+            resolve(JSON.parse(data));
+          } else {
+            reject(new Error(`API Error ${res.statusCode}: ${data}`));
+          }
+        });
+      });
+
+      req.on('error', reject);
+      req.write(requestBody);
+      req.end();
+    });
+
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
         success: true,
-        response: data.content[0].text
+        response: apiResponse.content[0].text
       }),
     };
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error:', error.message);
     return {
       statusCode: 500,
       headers,
